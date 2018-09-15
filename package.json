@@ -1,14 +1,14 @@
 {
-  "name": "cryptobot",
-  "version": "0.0.1",
-  "description": "Cryptocurrency trader autobot",
-  "main": "index.js",
-  "scripts": {
-    "start": "node --experimental-modules index.mjs"
-  },
-  "author": "Jayvin Bearsley",
-  "license": "GPL-3.0",
-  "dependencies": {
-    "cryptopia-api": "1.2.14"
-  }
+	"name": "cryptobot",
+	"version": "0.0.1",
+	"description": "Cryptocurrency trader autobot",
+	"main": "index.js",
+	"scripts": {
+		"start": "node --experimental-modules index.mjs"
+	},
+	"author": "Jayvin Bearsley",
+	"license": "GPL-3.0",
+	"dependencies": {
+		"cryptopia-api": "1.2.14"
+	}
 }

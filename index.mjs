@@ -1,6 +1,7 @@
 import Cryptopia from 'cryptopia-api';
 
 import MovingAverage from './strategies/moving-average';
+import config from './config/config';
 
 process.on('unhandledRejection', error => {
 	// Will print "unhandledRejection err is not defined"
@@ -12,12 +13,9 @@ let exchange = Cryptopia();
 
 const currentStrategy = MovingAverage;
 
-const options = {
-	API_KEY: 'YOUR_KEY_HERE',
-	API_SECRET: 'YOUR_SECRET_HERE',
-	HOST_URL: 'https://www.cryptopia.co.nz/api' //Optional, this is the default value
-};
-exchange.setOptions(options);
+exchange.setOptions(config);
+
+let btcAmount = 0;
 
 exchange.getBalance({
 	Currency: 'BTC'
