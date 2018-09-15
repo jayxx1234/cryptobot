@@ -1,5 +1,5 @@
 # cryptobot
-Cryptocurrency trader autobot
+Cryptocurrency trader autobot  
 Currently supports the following exchanges:
 - Cryptopia
 
