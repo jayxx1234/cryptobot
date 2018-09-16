@@ -1,7 +1,6 @@
 export default class MovingAverage {
 	constructor(exchange) {
-		this.currentBalance = 0;
-		this.averageCount = 10;
+		this.averageCount = 300;
 		this.values = [];
 		this.tradePlaced = false;
 		this.tradeType = '';
@@ -18,7 +17,7 @@ export default class MovingAverage {
 		let movingAverage = this.values.reduce((p, c) => p + c, 0) / this.values.length;
 
 		if (!this.tradePlaced) {
-			if (this.currentBalance > 0 && currentValue > movingAverage && currentValue < previousValue) {
+			if (currentValue > movingAverage && currentValue < previousValue) {
 				this.tradePlaced = true;
 				this.tradeType = 'sell';
 				return 'sell';
@@ -32,12 +31,20 @@ export default class MovingAverage {
 				// market has moved down without us, too cheap to sell
 				this.tradePlaced = false;
 				return 'exit sell';
+			} else {
+				// sell succeeded
+				this.tradePlaced = false;
+				return 'sell closed';
 			}
 		} else if (this.tradeType == 'buy') {
 			if (currentValue > movingAverage) {
 				// market has moved up without us, too expensive to buy
 				this.tradePlaced = false;
 				return 'exit buy';
+			} else {
+				// buy succeeded
+				this.tradePlaced = false;
+				return 'buy closed';
 			}
 		}
 
