@@ -1,6 +1,8 @@
+import Cryptocompare from 'cryptocompare';
+
 import Cryptopia from 'cryptopia-api';
 
-import MovingAverage from './strategies/moving-average';
+import MACD from './strategies/macd';
 import config from './config/config';
 
 process.on('unhandledRejection', error => {
@@ -15,7 +17,7 @@ let fees = {
 
 let exchange = Cryptopia();
 
-const currentStrategy = MovingAverage;
+const currentStrategy = MACD;
 
 exchange.setOptions(config);
 
@@ -23,6 +25,15 @@ let btcAmount = 0;
 let initialBtcAmount = 0;
 let coinAmount = 0;
 let coin = 'ETH';
+let pair = `${coin}_BTC`;
+
+Date.prototype.addDays = function(days) {
+	let date = new Date(this.valueOf());
+	date.setDate(date.getDate() + days);
+	return date;
+}
+
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 exchange.getBalance({
 	Currency: 'BTC'
@@ -43,17 +54,16 @@ function logBalance() {
 
 async function main() {
 	let period = 1000;
-	let pair = `${coin}_BTC`;
 
-	// amount of ETH to buy/sell per trade
-	let tradeAmount = 0.001;
+	// amount of BTC worth of the coin to buy/sell per trade
+	let tradeBaseAmount = btcAmount / 10;
 
 	let isUsingHistoricalData = true;
-	let historicalDays = 100; // cryptopia caps at 1000 rows
-	let historicalData = await exchange.getMarketHistory({Market: pair, Hours: 24 * historicalDays});
+	let historicalDays = 1000;
 	let historicalRowNumber = 0;
 
-	// { id: 1, price: 3, amount: 0.001, feeRate: 0.002, total: (3 * 0.001) - 0.00006, type: 'buy' }
+	let lastValue = null;
+
 	let pendingTrade = null;
 	let calcFee = function(trade) {
 		return trade.price * trade.amount * trade.feeRate;
@@ -76,18 +86,42 @@ async function main() {
 	}
 
 	let getHistoricalValue = async function() {
-		return historicalData.Data[historicalRowNumber++].Price;
+		await sleep(1000);
+		let date = new Date().addDays(historicalRowNumber++ - historicalDays);
+		let data;
+		try {
+			data = await Cryptocompare.priceHistorical(coin, 'BTC', date);
+			return data.BTC;
+		} catch (error) {
+			return null;
+		}
+	}
+
+	let getBtcValue = async function() {
+		let data = await Cryptocompare.priceHistorical('BTC', 'NZD', new Date());
+		return data.NZD;
 	}
 
 	let update = async function() {
-		if (isUsingHistoricalData && historicalRowNumber >= historicalData.Data.length) {
+		if (isUsingHistoricalData && historicalRowNumber >= historicalDays) {
 			console.log(`End of historical data. Initial holdings: ${initialBtcAmount} BTC, 0 ${coin}`);
 			console.log(`Final holdings: ${btcAmount} BTC, ${coinAmount} ${coin}`);
 			console.log(`Difference: ${btcAmount - initialBtcAmount} BTC, ${coinAmount} ${coin}`);
+			let btcProfit = (btcAmount - initialBtcAmount) * await getBtcValue();
+			let coinProfit = coinAmount * lastValue;
+			console.log(`Total profit in NZD: $${btcProfit + coinProfit}`);
 			return;
 		}
 
 		let currentValue = await getValue();
+		if (currentValue === null) {
+			historicalRowNumber--;
+			console.log('Error getting current value. Trying again in 1 second...');
+			setTimeout(update, 1000);
+			return;
+		}
+		console.log(currentValue);
+		lastValue = currentValue;
 		let action = trader.update(currentValue);
 
 		switch (action) {
@@ -128,17 +162,18 @@ async function main() {
 					console.log('No BTC left to buy with');
 					break;
 				}
+				let amount = tradeBaseAmount / currentValue;
 				if (!isUsingHistoricalData) {
 					let currentTradeId = exchange.submitTrade({
 						Market: pair,
 						Type: 'Buy',
 						Rate: currentValue,
-						Amount: tradeAmount,
+						Amount: amount,
 					});
 					pendingTrade = {
 						id: currentTradeId,
 						price: currentValue,
-						amount: tradeAmount,
+						amount: amount,
 						feeRate: fees.cryptopia,
 						type: 'buy',
 					};
@@ -146,7 +181,7 @@ async function main() {
 					pendingTrade = {
 						id: -1,
 						price: currentValue,
-						amount: tradeAmount,
+						amount: amount,
 						feeRate: fees.cryptopia,
 						type: 'buy',
 					};

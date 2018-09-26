@@ -4,11 +4,14 @@
 	"description": "Cryptocurrency trader autobot",
 	"main": "index.js",
 	"scripts": {
-		"start": "node --experimental-modules index.mjs"
+		"start": "node --experimental-modules index.mjs > config/movingAverage.txt"
 	},
 	"author": "Jayvin Bearsley",
 	"license": "GPL-3.0",
 	"dependencies": {
-		"cryptopia-api": "1.2.14"
+		"cryptocompare": "0.5.0",
+		"cryptopia-api": "1.2.14",
+		"finmath": "1.1.2",
+		"node-fetch": "2.2.0"
 	}
 }
