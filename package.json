@@ -4,7 +4,7 @@
 	"description": "Cryptocurrency trader autobot",
 	"main": "index.js",
 	"scripts": {
-		"start": "node --experimental-modules index.mjs > config/movingAverage.txt"
+		"start": "node --experimental-modules index.mjs > config/output.txt"
 	},
 	"author": "Jayvin Bearsley",
 	"license": "GPL-3.0",
