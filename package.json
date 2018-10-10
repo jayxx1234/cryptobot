@@ -9,6 +9,7 @@
 	"author": "Jayvin Bearsley",
 	"license": "GPL-3.0",
 	"dependencies": {
+		"brain.js": "1.4.2",
 		"cryptocompare": "0.5.0",
 		"cryptopia-api": "1.2.14",
 		"finmath": "1.1.2",

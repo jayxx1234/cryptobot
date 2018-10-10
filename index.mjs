@@ -2,8 +2,12 @@ import Cryptocompare from 'cryptocompare';
 
 import Cryptopia from 'cryptopia-api';
 
-import MACD from './strategies/macd';
+import lstm from './strategies/lstm';
 import config from './config/config';
+
+import fetch from 'node-fetch';
+
+global.fetch = fetch;
 
 process.on('unhandledRejection', error => {
 	console.log('unhandledRejection:', error);
@@ -17,7 +21,7 @@ let fees = {
 
 let exchange = Cryptopia();
 
-const currentStrategy = MACD;
+const currentStrategy = lstm;
 
 exchange.setOptions(config);
 
@@ -26,12 +30,6 @@ let initialBtcAmount = 0;
 let coinAmount = 0;
 let coin = 'ETH';
 let pair = `${coin}_BTC`;
-
-Date.prototype.addDays = function(days) {
-	let date = new Date(this.valueOf());
-	date.setDate(date.getDate() + days);
-	return date;
-}
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -59,8 +57,20 @@ async function main() {
 	let tradeBaseAmount = btcAmount / 10;
 
 	let isUsingHistoricalData = true;
-	let historicalDays = 1000;
+	let historicalHours = 1000000;
 	let historicalRowNumber = 0;
+	let historicalData = [];
+
+	if (isUsingHistoricalData) {
+		console.log('fetching historical data...');
+		let options = {
+			exchange: 'cryptopia',
+			limit: historicalHours,
+			tryConversion: false,
+		};
+		historicalData = await Cryptocompare.histoHour(coin, 'BTC', options);
+		console.log('finished fetching historical data');
+	}
 
 	let lastValue = null;
 
@@ -86,15 +96,7 @@ async function main() {
 	}
 
 	let getHistoricalValue = async function() {
-		await sleep(1000);
-		let date = new Date().addDays(historicalRowNumber++ - historicalDays);
-		let data;
-		try {
-			data = await Cryptocompare.priceHistorical(coin, 'BTC', date);
-			return data.BTC;
-		} catch (error) {
-			return null;
-		}
+		return historicalData[historicalRowNumber++].close;
 	}
 
 	let getBtcValue = async function() {
@@ -103,7 +105,7 @@ async function main() {
 	}
 
 	let update = async function() {
-		if (isUsingHistoricalData && historicalRowNumber >= historicalDays) {
+		if (isUsingHistoricalData && historicalRowNumber >= historicalData.length) {
 			console.log(`End of historical data. Initial holdings: ${initialBtcAmount} BTC, 0 ${coin}`);
 			console.log(`Final holdings: ${btcAmount} BTC, ${coinAmount} ${coin}`);
 			console.log(`Difference: ${btcAmount - initialBtcAmount} BTC, ${coinAmount} ${coin}`);
@@ -122,7 +124,7 @@ async function main() {
 		}
 		console.log(currentValue);
 		lastValue = currentValue;
-		let action = trader.update(currentValue);
+		let action = await trader.update(currentValue);
 
 		switch (action) {
 			case 'sell': // sell all coin at this price
