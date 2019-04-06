@@ -1,0 +1,8 @@
+# create-react-app generated files
+src/registerServiceWorker.ts
+src/react-app-env.d.ts
+
+
+build/
+node_modules/
+!.eslintrc.js
