@@ -4,6 +4,7 @@ import Typography from '@material-ui/core/Typography';
 import Paper from '@material-ui/core/Paper';
 import Select from 'react-select';
 import { Button } from '@material-ui/core';
+import StockChart from './StockChart';
 
 class ExchangeTrader extends React.Component<{ exchange: string | null }, {}> {
 	public title = 'Cryptobot';
@@ -12,10 +13,12 @@ class ExchangeTrader extends React.Component<{ exchange: string | null }, {}> {
 		exchange: string | null;
 		markets: ccxt.Market[];
 		market: ccxt.Market | null;
+		trades: ccxt.Ticker[];
 	} = {
 		exchange: null,
 		markets: [],
 		market: null,
+		trades: [],
 	};
 
 	public trader: ccxt.Exchange = new ccxt.poloniex();
@@ -47,8 +50,10 @@ class ExchangeTrader extends React.Component<{ exchange: string | null }, {}> {
 
 	onMarketChange(option: any) {
 		const market = option.value;
-		this.trader.fetchTrades(market).then(trades => {
-			console.log(trades);
+		this.trader.fetchTickers(market, {}).then(trades => {
+			this.setState({
+				trades,
+			});
 		});
 
 		this.setState({
@@ -106,7 +111,12 @@ class ExchangeTrader extends React.Component<{ exchange: string | null }, {}> {
 				</div>
 			);
 		} else {
-			return <div>Hello world!</div>;
+			console.log(this.state.trades);
+			return (
+				<div>
+					<StockChart data={this.state.trades} />
+				</div>
+			);
 		}
 	}
 
