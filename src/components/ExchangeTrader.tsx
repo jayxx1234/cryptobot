@@ -8,12 +8,13 @@ import StockChart from './StockChart';
 
 class ExchangeTrader extends React.Component<{ exchange: string | null }, {}> {
 	public title = 'Cryptobot';
+	public sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 	public state: {
 		exchange: string | null;
 		markets: ccxt.Market[];
 		market: ccxt.Market | null;
-		trades: ccxt.Ticker[];
+		trades: ccxt.Trade[];
 	} = {
 		exchange: null,
 		markets: [],
@@ -48,17 +49,30 @@ class ExchangeTrader extends React.Component<{ exchange: string | null }, {}> {
 		});
 	}
 
-	onMarketChange(option: any) {
+	async onMarketChange(option: any) {
 		const market = option.value;
-		this.trader.fetchTickers(market, {}).then(trades => {
-			this.setState({
-				trades,
-			});
-		});
 
 		this.setState({
 			market,
 		});
+
+		if (this.trader.fetchOHLCV) {
+			await this.sleep(this.trader.rateLimit);
+			let date: Date = new Date();
+			date.setMonth(date.getMonth() - 1);
+			let since: number = date.valueOf() / 1000;
+			this.trader
+				.fetchOHLCV(market, '1d', undefined, undefined, {
+					period: 300,
+					start: since,
+					end: new Date().valueOf() / 1000,
+				})
+				.then(trades => {
+					this.setState({
+						trades,
+					});
+				});
+		}
 	}
 
 	resetScreen() {

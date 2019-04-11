@@ -11,7 +11,7 @@ import { TypeChooser } from 'react-stockcharts/lib/helper';
 import { scaleTime } from 'd3-scale';
 import { utcDay } from 'd3-time';
 
-class StockChart extends React.Component<{ width: number; data: ccxt.Ticker[]; ratio: number }, {}> {
+class StockChart extends React.Component<{ width: number; data: ccxt.OHLCV[]; ratio: number }, {}> {
 	public render() {
 		const { width, data, ratio } = this.props;
 		if (!data || !data.length) {
@@ -21,9 +21,19 @@ class StockChart extends React.Component<{ width: number; data: ccxt.Ticker[]; r
 				</Typography>
 			);
 		}
-		console.log(data);
-		const xAccessor = (d: ccxt.Ticker) => d.timestamp;
-		const xExtents = [xAccessor(data[data.length - 1]), xAccessor(data[0])];
+
+		const parsedData = data.map(point => {
+			return {
+				date: new Date(point[0]),
+				open: point[1],
+				high: point[2],
+				low: point[3],
+				close: point[4],
+			};
+		});
+
+		const xAccessor = (d: { date: Date; open: number; high: number; low: number; close: number }) => d.date;
+		const xExtents = [xAccessor(parsedData[parsedData.length - 1]), xAccessor(parsedData[0])];
 
 		return (
 			<TypeChooser>
@@ -34,13 +44,13 @@ class StockChart extends React.Component<{ width: number; data: ccxt.Ticker[]; r
 						width={width}
 						margin={{ left: 50, right: 50, top: 10, bottom: 30 }}
 						type={type}
-						seriesName={data && data.length && data[0].symbol}
-						data={data}
+						seriesName="Series 1"
+						data={parsedData}
 						xAccessor={xAccessor}
 						xScale={scaleTime()}
 						xExtents={xExtents}
 					>
-						<Chart id={1} yExtents={(d: any) => [d.price - 10, d.price + 10]}>
+						<Chart id={1} yExtents={(d: any) => [d[2], d[1]]}>
 							<XAxis axisAt="bottom" orient="bottom" ticks={6} />
 							<YAxis axisAt="left" orient="left" ticks={5} />
 							<CandlestickSeries width={timeIntervalBarWidth(utcDay)} />
