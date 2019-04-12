@@ -14,7 +14,7 @@ class ExchangeTrader extends React.Component<{ exchange: string | null }, {}> {
 		exchange: string | null;
 		markets: ccxt.Market[];
 		market: ccxt.Market | null;
-		trades: ccxt.Trade[];
+		trades: ccxt.OHLCV[];
 	} = {
 		exchange: null,
 		markets: [],
@@ -67,7 +67,7 @@ class ExchangeTrader extends React.Component<{ exchange: string | null }, {}> {
 					start: since,
 					end: new Date().valueOf() / 1000,
 				})
-				.then(trades => {
+				.then((trades: ccxt.OHLCV[]) => {
 					this.setState({
 						trades,
 					});

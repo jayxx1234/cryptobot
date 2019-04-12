@@ -1,65 +1,78 @@
 import * as React from 'react';
 import ccxt from 'ccxt';
 import Typography from '@material-ui/core/Typography';
-import { ChartCanvas, Chart } from 'react-stockcharts';
-import { CandlestickSeries } from 'react-stockcharts/lib/series';
-import { XAxis, YAxis } from 'react-stockcharts/lib/axes';
-import { fitWidth } from 'react-stockcharts/lib/helper';
-import { timeIntervalBarWidth } from 'react-stockcharts/lib/utils';
-import { TypeChooser } from 'react-stockcharts/lib/helper';
 
-import { scaleTime } from 'd3-scale';
-import { utcDay } from 'd3-time';
+import ReactApexCharts from 'react-apexcharts';
 
-class StockChart extends React.Component<{ width: number; data: ccxt.OHLCV[]; ratio: number }, {}> {
-	public render() {
-		const { width, data, ratio } = this.props;
-		if (!data || !data.length) {
+class CandleStickChart extends React.Component<{ data: ccxt.OHLCV[] }, { options: any; series: any }> {
+	public state: { options: any; series: any } = {
+		options: {
+			title: {
+				text: 'CandleStick Chart',
+				align: 'left',
+			},
+			xaxis: {
+				type: 'datetime',
+			},
+			yaxis: {
+				tooltip: {
+					enabled: true,
+				},
+			},
+		},
+		series: [
+			{
+				// props data is in format: timestamp, open, high, low, close, volume
+				data: this.props.data.map(point => {
+					return {
+						x: new Date(point[0]),
+						y: [point[1], point[2], point[3], point[4]],
+					};
+				}),
+			},
+		],
+	};
+
+	componentWillReceiveProps(newProps: { data: ccxt.OHLCV[] }) {
+		this.setState({
+			series: [
+				{
+					data: newProps.data.map(point => {
+						return {
+							x: new Date(point[0]),
+							y: [point[1], point[2], point[3], point[4]],
+						};
+					}),
+				},
+			],
+		});
+	}
+
+	render() {
+		if (!this.props.data) {
+			return (
+				<Typography variant="body2" component="div">
+					Loading data...
+				</Typography>
+			);
+		} else if (!this.props.data.length) {
 			return (
 				<Typography variant="body2" component="div">
 					No data
 				</Typography>
 			);
 		}
-
-		const parsedData = data.map(point => {
-			return {
-				date: new Date(point[0]),
-				open: point[1],
-				high: point[2],
-				low: point[3],
-				close: point[4],
-			};
-		});
-
-		const xAccessor = (d: { date: Date; open: number; high: number; low: number; close: number }) => d.date;
-		const xExtents = [xAccessor(parsedData[parsedData.length - 1]), xAccessor(parsedData[0])];
-
 		return (
-			<TypeChooser>
-				{(type: string) => (
-					<ChartCanvas
-						height={400}
-						ratio={ratio}
-						width={width}
-						margin={{ left: 50, right: 50, top: 10, bottom: 30 }}
-						type={type}
-						seriesName="Series 1"
-						data={parsedData}
-						xAccessor={xAccessor}
-						xScale={scaleTime()}
-						xExtents={xExtents}
-					>
-						<Chart id={1} yExtents={(d: any) => [d[2], d[1]]}>
-							<XAxis axisAt="bottom" orient="bottom" ticks={6} />
-							<YAxis axisAt="left" orient="left" ticks={5} />
-							<CandlestickSeries width={timeIntervalBarWidth(utcDay)} />
-						</Chart>
-					</ChartCanvas>
-				)}
-			</TypeChooser>
+			<div id="chart">
+				<ReactApexCharts
+					options={this.state.options}
+					series={this.state.series}
+					type="candlestick"
+					height="350"
+				/>
+			</div>
 		);
 	}
 }
 
-export default fitWidth(StockChart);
+export default CandleStickChart;
