@@ -6,6 +6,8 @@ import Select from 'react-select';
 import { Button } from '@material-ui/core';
 import StockChart from './StockChart';
 
+interface Indicator {}
+
 class ExchangeTrader extends React.Component<{ exchange: string | null }, {}> {
 	public title = 'Cryptobot';
 	public sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -14,12 +16,12 @@ class ExchangeTrader extends React.Component<{ exchange: string | null }, {}> {
 		exchange: string | null;
 		markets: ccxt.Market[];
 		market: ccxt.Market | null;
-		trades: ccxt.OHLCV[];
+		trades: ccxt.OHLCV[] | null;
 	} = {
 		exchange: null,
 		markets: [],
 		market: null,
-		trades: [],
+		trades: null,
 	};
 
 	public trader: ccxt.Exchange = new ccxt.poloniex();
@@ -56,14 +58,14 @@ class ExchangeTrader extends React.Component<{ exchange: string | null }, {}> {
 			market,
 		});
 
-		if (this.trader.fetchOHLCV) {
+		if (this.trader.has['fetchOHLCV'] && this.trader.fetchOHLCV) {
 			await this.sleep(this.trader.rateLimit);
 			let date: Date = new Date();
-			date.setMonth(date.getMonth() - 1);
+			date.setMonth(date.getMonth() - 2);
 			let since: number = date.valueOf() / 1000;
 			this.trader
 				.fetchOHLCV(market, '1d', undefined, undefined, {
-					period: 300,
+					period: 86400,
 					start: since,
 					end: new Date().valueOf() / 1000,
 				})
@@ -125,10 +127,9 @@ class ExchangeTrader extends React.Component<{ exchange: string | null }, {}> {
 				</div>
 			);
 		} else {
-			console.log(this.state.trades);
 			return (
 				<div>
-					<StockChart data={this.state.trades} />
+					<StockChart className="tile" data={this.state.trades} />
 				</div>
 			);
 		}
@@ -141,6 +142,7 @@ class ExchangeTrader extends React.Component<{ exchange: string | null }, {}> {
 					{this.getHeader()}
 				</Typography>
 				{this.renderScreen()}
+				<div className="clearfix" />
 				<Button onClick={this.resetScreen}>Reset</Button>
 			</Paper>
 		);

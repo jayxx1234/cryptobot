@@ -12,11 +12,31 @@ code {
 	font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
 }
 
+.clearfix {
+	clear: both;
+}
+
 .main,
 .trader {
+	text-align: center;
+}
+
+[class^='MuiPaper-'] {
 	margin: 15px;
 	padding: 10px;
-	text-align: center;
+}
+
+.tile {
+	width: calc(50% - 12px);
+	padding: 5px;
+	float: left;
+
+	&:nth-child(even) {
+		border-left: 1px solid #ccc;
+	}
+	&:nth-child(n + 3) {
+		border-top: 1px solid #ccc;
+	}
 }
 
 .links {
