@@ -21,67 +21,57 @@ interface CandleStickChartProps extends DivProps {
 class CandleStickChart extends React.Component<
 	CandleStickChartProps,
 	{
-		chartOptionsCandlestick: any;
-		chartOptionsLine: any;
-		series: { candlestick: any[]; histogram: any[] };
+		chartOptions: any[];
+		series: any[][];
 	}
 > {
 	public state: {
-		chartOptionsCandlestick: any;
-		chartOptionsLine: any;
-		series: { candlestick: any[]; histogram: any[] };
+		chartOptions: any[];
+		series: any[][];
 	} = {
-		chartOptionsCandlestick: {
-			chart: {
-				id: 'candles',
-				zoom: {
+		chartOptions: [
+			{
+				chart: {
+					id: 'candles',
+					type: 'candlestick',
+					zoom: {
+						enabled: false,
+					},
+				},
+				xaxis: {
+					type: 'datetime',
+				},
+				yaxis: {
+					labels: {
+						minWidth: 50,
+					},
+				},
+			},
+			{
+				chart: {
+					type: 'line',
+					zoom: {
+						enabled: false,
+					},
+				},
+				dataLabels: {
 					enabled: false,
 				},
-			},
-			// plotOptions: {
-			// 	candlestick: {
-			// 		colors: {
-			// 			upward: '#3C90EB',
-			// 			downward: '#DF7D46',
-			// 		},
-			// 	},
-			// },
-			xaxis: {
-				type: 'datetime',
-			},
-			yaxis: {
-				labels: {
-					minWidth: 50,
+				stroke: {
+					width: 1,
+				},
+				xaxis: {
+					type: 'datetime',
+				},
+				yaxis: {
+					labels: {
+						show: false,
+						minWidth: 50,
+					},
 				},
 			},
-		},
-		chartOptionsLine: {
-			chart: {
-				height: 160,
-				zoom: {
-					enabled: false,
-				},
-			},
-			dataLabels: {
-				enabled: false,
-			},
-			stroke: {
-				width: 1,
-			},
-			xaxis: {
-				type: 'datetime',
-			},
-			yaxis: {
-				labels: {
-					show: false,
-					minWidth: 50,
-				},
-			},
-		},
-		series: {
-			candlestick: [],
-			histogram: [],
-		},
+		],
+		series: [[], []],
 	};
 	macd: Indicators.MACD = new Indicators.MACD({
 		...macdConfig,
@@ -92,17 +82,15 @@ class CandleStickChart extends React.Component<
 		if (!newProps || !newProps.data) return;
 
 		let propsData = newProps.data;
-		console.log(propsData);
 
 		let macdResult = new Indicators.MACD({
 			...macdConfig,
 			values: propsData.map(x => x[3]),
 		}).result;
-		console.log(macdResult);
 
 		this.setState({
-			series: {
-				candlestick: [
+			series: [
+				[
 					{
 						data: newProps.data.map(point => {
 							return {
@@ -112,24 +100,27 @@ class CandleStickChart extends React.Component<
 						}),
 					},
 				],
-				histogram: [
-					// {
-					// 	data: macdResult.map((x, i) => {
-					// 		return {
-					// 			x: new Date(propsData[i][0]),
-					// 			y: x.MACD,
-					// 		};
-					// 	}),
-					// },
-					// {
-					// 	data: macdResult.map((x, i) => {
-					// 		return {
-					// 			x: new Date(propsData[i][0]),
-					// 			y: x.signal,
-					// 		};
-					// 	}),
-					// },
+				[
 					{
+						name: 'macd',
+						data: macdResult.map((x, i) => {
+							return {
+								x: new Date(propsData[i][0]),
+								y: x.MACD,
+							};
+						}),
+					},
+					{
+						name: 'signal',
+						data: macdResult.map((x, i) => {
+							return {
+								x: new Date(propsData[i][0]),
+								y: x.signal,
+							};
+						}),
+					},
+					{
+						name: 'histogram',
 						data: macdResult.map((x, i) => {
 							return {
 								x: new Date(propsData[i][0]),
@@ -138,23 +129,7 @@ class CandleStickChart extends React.Component<
 						}),
 					},
 				],
-			},
-			chartOptionsCandlestick: {
-				...this.state.chartOptionsCandlestick,
-				xaxis: {
-					...this.state.chartOptionsCandlestick.xaxis,
-					min: new Date(newProps.data[0][0]).getTime(),
-					max: new Date(newProps.data[newProps.data.length - 1][0]).getTime(),
-				},
-			},
-			chartOptionsLine: {
-				...this.state.chartOptionsLine,
-				xaxis: {
-					...this.state.chartOptionsLine.xaxis,
-					min: new Date(newProps.data[0][0]).getTime(),
-					max: new Date(newProps.data[newProps.data.length - 1][0]).getTime(),
-				},
-			},
+			],
 		});
 	}
 
@@ -177,18 +152,17 @@ class CandleStickChart extends React.Component<
 
 		return (
 			<div id="chart" {...otherProps}>
-				<ReactApexChart
-					options={this.state.chartOptionsCandlestick}
-					series={this.state.series.candlestick}
-					type="candlestick"
-					height="350"
-				/>
-				<ReactApexChart
-					options={this.state.chartOptionsLine}
-					series={this.state.series.histogram}
-					type="line"
-					height="160"
-				/>
+				{this.state.series.map((series, i) => {
+					return (
+						<ReactApexChart
+							key={'chart-' + i}
+							options={this.state.chartOptions[i]}
+							series={series}
+							type={this.state.chartOptions[i].chart.type}
+							height={this.state.chartOptions[i].chart.height}
+						/>
+					);
+				})}
 			</div>
 		);
 	}
