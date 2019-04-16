@@ -3,7 +3,15 @@ import ccxt from 'ccxt';
 import Typography from '@material-ui/core/Typography';
 
 import ReactApexChart from 'react-apexcharts';
-import MACD from '../indicators/macd';
+import * as Indicators from 'technicalindicators';
+
+const macdConfig = {
+	fastPeriod: 12,
+	slowPeriod: 26,
+	signalPeriod: 9,
+	SimpleMAOscillator: false,
+	SimpleMASignal: false,
+};
 
 type DivProps = JSX.IntrinsicElements['div'];
 interface CandleStickChartProps extends DivProps {
@@ -12,12 +20,16 @@ interface CandleStickChartProps extends DivProps {
 
 class CandleStickChart extends React.Component<
 	CandleStickChartProps,
-	{ chartOptionsCandlestick: any; chartOptionsBar: any; series: { candlestick: any[]; macd: any[] } }
+	{
+		chartOptionsCandlestick: any;
+		chartOptionsBar: any;
+		series: { candlestick: any[]; histogram: any[] };
+	}
 > {
 	public state: {
 		chartOptionsCandlestick: any;
 		chartOptionsBar: any;
-		series: { candlestick: any[]; macd: any[] };
+		series: { candlestick: any[]; histogram: any[] };
 	} = {
 		chartOptionsCandlestick: {
 			chart: {
@@ -30,14 +42,14 @@ class CandleStickChart extends React.Component<
 					enabled: false,
 				},
 			},
-			plotOptions: {
-				candlestick: {
-					colors: {
-						upward: '#3C90EB',
-						downward: '#DF7D46',
-					},
-				},
-			},
+			// plotOptions: {
+			// 	candlestick: {
+			// 		colors: {
+			// 			upward: '#3C90EB',
+			// 			downward: '#DF7D46',
+			// 		},
+			// 	},
+			// },
 			xaxis: {
 				type: 'datetime',
 			},
@@ -100,39 +112,65 @@ class CandleStickChart extends React.Component<
 		},
 		series: {
 			candlestick: [],
-			macd: [],
+			histogram: [],
 		},
 	};
-	macd: MACD = new MACD();
+	macd: Indicators.MACD = new Indicators.MACD({
+		...macdConfig,
+		values: [],
+	});
 
 	componentWillReceiveProps(newProps: { data: ccxt.OHLCV[] | null }) {
-		if (newProps && newProps.data) {
-			this.macd.start(newProps.data);
-			this.setState({
-				series: {
-					candlestick: [
-						{
-							data: newProps.data.map(point => {
-								return {
-									x: new Date(point[0]),
-									y: [point[1], point[2], point[3], point[4]],
-								};
-							}),
-						},
-					],
-					macd: [
-						{
-							data: newProps.data.map((point, i) => {
-								return {
-									x: new Date(point[0]),
-									y: this.macd.getValue(i),
-								};
-							}),
-						},
-					],
-				},
-			});
-		}
+		if (!newProps || !newProps.data) return;
+
+		let data = newProps.data;
+
+		let macdResult = new Indicators.MACD({
+			...macdConfig,
+			values: data.map(x => x[3]),
+		}).result;
+		console.log(macdResult);
+
+		this.setState({
+			series: {
+				candlestick: [
+					{
+						data: newProps.data.map(point => {
+							return {
+								x: new Date(point[0]),
+								y: [point[1], point[2], point[3], point[4]],
+							};
+						}),
+					},
+				],
+				histogram: [
+					// {
+					// 	data: macdResult.map((x, i) => {
+					// 		return {
+					// 			x: new Date(data[i][0]),
+					// 			y: x.MACD,
+					// 		};
+					// 	}),
+					// },
+					// {
+					// 	data: macdResult.map((x, i) => {
+					// 		return {
+					// 			x: new Date(data[i][0]),
+					// 			y: x.signal,
+					// 		};
+					// 	}),
+					// },
+					{
+						data: macdResult.map((x, i) => {
+							return {
+								x: new Date(data[i][0]),
+								y: x.histogram,
+							};
+						}),
+					},
+				],
+			},
+		});
 	}
 
 	render() {
@@ -162,7 +200,7 @@ class CandleStickChart extends React.Component<
 				/>
 				<ReactApexChart
 					options={this.state.chartOptionsBar}
-					series={this.state.series.macd}
+					series={this.state.series.histogram}
 					type="bar"
 					height="160"
 				/>
