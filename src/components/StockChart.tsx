@@ -22,22 +22,18 @@ class CandleStickChart extends React.Component<
 	CandleStickChartProps,
 	{
 		chartOptionsCandlestick: any;
-		chartOptionsBar: any;
+		chartOptionsLine: any;
 		series: { candlestick: any[]; histogram: any[] };
 	}
 > {
 	public state: {
 		chartOptionsCandlestick: any;
-		chartOptionsBar: any;
+		chartOptionsLine: any;
 		series: { candlestick: any[]; histogram: any[] };
 	} = {
 		chartOptionsCandlestick: {
 			chart: {
 				id: 'candles',
-				toolbar: {
-					autoSelected: 'pan',
-					show: false,
-				},
 				zoom: {
 					enabled: false,
 				},
@@ -53,60 +49,32 @@ class CandleStickChart extends React.Component<
 			xaxis: {
 				type: 'datetime',
 			},
+			yaxis: {
+				labels: {
+					minWidth: 50,
+				},
+			},
 		},
-		chartOptionsBar: {
+		chartOptionsLine: {
 			chart: {
 				height: 160,
-				type: 'bar',
-				brush: {
-					enabled: true,
-					target: 'candles',
-				},
-				selection: {
-					enabled: true,
-					fill: {
-						color: '#ccc',
-						opacity: 0.4,
-					},
-					stroke: {
-						color: '#0D47A1',
-					},
+				zoom: {
+					enabled: false,
 				},
 			},
 			dataLabels: {
 				enabled: false,
 			},
-			plotOptions: {
-				bar: {
-					columnWidth: '80%',
-					colors: {
-						ranges: [
-							{
-								from: -1000,
-								to: 0,
-								color: '#F15B46',
-							},
-							{
-								from: 1,
-								to: 10000,
-								color: '#FEB019',
-							},
-						],
-					},
-				},
-			},
 			stroke: {
-				width: 0,
+				width: 1,
 			},
 			xaxis: {
 				type: 'datetime',
-				axisBorder: {
-					offsetX: 13,
-				},
 			},
 			yaxis: {
 				labels: {
 					show: false,
+					minWidth: 50,
 				},
 			},
 		},
@@ -123,11 +91,12 @@ class CandleStickChart extends React.Component<
 	componentWillReceiveProps(newProps: { data: ccxt.OHLCV[] | null }) {
 		if (!newProps || !newProps.data) return;
 
-		let data = newProps.data;
+		let propsData = newProps.data;
+		console.log(propsData);
 
 		let macdResult = new Indicators.MACD({
 			...macdConfig,
-			values: data.map(x => x[3]),
+			values: propsData.map(x => x[3]),
 		}).result;
 		console.log(macdResult);
 
@@ -147,7 +116,7 @@ class CandleStickChart extends React.Component<
 					// {
 					// 	data: macdResult.map((x, i) => {
 					// 		return {
-					// 			x: new Date(data[i][0]),
+					// 			x: new Date(propsData[i][0]),
 					// 			y: x.MACD,
 					// 		};
 					// 	}),
@@ -155,7 +124,7 @@ class CandleStickChart extends React.Component<
 					// {
 					// 	data: macdResult.map((x, i) => {
 					// 		return {
-					// 			x: new Date(data[i][0]),
+					// 			x: new Date(propsData[i][0]),
 					// 			y: x.signal,
 					// 		};
 					// 	}),
@@ -163,12 +132,28 @@ class CandleStickChart extends React.Component<
 					{
 						data: macdResult.map((x, i) => {
 							return {
-								x: new Date(data[i][0]),
+								x: new Date(propsData[i][0]),
 								y: x.histogram,
 							};
 						}),
 					},
 				],
+			},
+			chartOptionsCandlestick: {
+				...this.state.chartOptionsCandlestick,
+				xaxis: {
+					...this.state.chartOptionsCandlestick.xaxis,
+					min: new Date(newProps.data[0][0]).getTime(),
+					max: new Date(newProps.data[newProps.data.length - 1][0]).getTime(),
+				},
+			},
+			chartOptionsLine: {
+				...this.state.chartOptionsLine,
+				xaxis: {
+					...this.state.chartOptionsLine.xaxis,
+					min: new Date(newProps.data[0][0]).getTime(),
+					max: new Date(newProps.data[newProps.data.length - 1][0]).getTime(),
+				},
 			},
 		});
 	}
@@ -199,9 +184,9 @@ class CandleStickChart extends React.Component<
 					height="350"
 				/>
 				<ReactApexChart
-					options={this.state.chartOptionsBar}
+					options={this.state.chartOptionsLine}
 					series={this.state.series.histogram}
-					type="bar"
+					type="line"
 					height="160"
 				/>
 			</div>
