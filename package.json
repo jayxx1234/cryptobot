@@ -15,7 +15,7 @@
 	},
 	"dependencies": {
 		"@material-ui/core": "3.9.3",
-		"@tensorflow/tfjs": "1.0.4",
+		"@tensorflow/tfjs": "0.13.0",
 		"@tensorflow/tfjs-node": "1.0.3",
 		"apexcharts": "3.6.6",
 		"autosuggest-highlight": "3.1.1",

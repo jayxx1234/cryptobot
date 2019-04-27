@@ -1,140 +1,15 @@
 import * as React from 'react';
-import ccxt from 'ccxt';
 import Typography from '@material-ui/core/Typography';
+import StockChartProps from './charts/utils';
+import '@tensorflow/tfjs';
 
-import ReactApexChart from 'react-apexcharts';
-import * as Indicators from 'technicalindicators';
+import Candles from './charts/Candles';
+import MACD from './charts/MACD';
+import RSI from './charts/RSI';
 
-const macdConfig = {
-	fastPeriod: 12,
-	slowPeriod: 26,
-	signalPeriod: 9,
-	SimpleMAOscillator: false,
-	SimpleMASignal: false,
-};
-
-type DivProps = JSX.IntrinsicElements['div'];
-interface CandleStickChartProps extends DivProps {
-	data: ccxt.OHLCV[] | null;
-}
-
-class CandleStickChart extends React.Component<
-	CandleStickChartProps,
-	{
-		chartOptions: any[];
-		series: any[][];
-	}
-> {
-	public state: {
-		chartOptions: any[];
-		series: any[][];
-	} = {
-		chartOptions: [
-			{
-				chart: {
-					id: 'candles',
-					type: 'candlestick',
-					zoom: {
-						enabled: false,
-					},
-				},
-				xaxis: {
-					type: 'datetime',
-				},
-				yaxis: {
-					labels: {
-						minWidth: 50,
-					},
-				},
-			},
-			{
-				chart: {
-					type: 'line',
-					zoom: {
-						enabled: false,
-					},
-				},
-				dataLabels: {
-					enabled: false,
-				},
-				stroke: {
-					width: 1,
-				},
-				xaxis: {
-					type: 'datetime',
-				},
-				yaxis: {
-					labels: {
-						show: false,
-						minWidth: 50,
-					},
-				},
-			},
-		],
-		series: [[], []],
-	};
-	macd: Indicators.MACD = new Indicators.MACD({
-		...macdConfig,
-		values: [],
-	});
-
-	componentWillReceiveProps(newProps: { data: ccxt.OHLCV[] | null }) {
-		if (!newProps || !newProps.data) return;
-
-		let propsData = newProps.data;
-
-		let macdResult = new Indicators.MACD({
-			...macdConfig,
-			values: propsData.map(x => x[3]),
-		}).result;
-
-		this.setState({
-			series: [
-				[
-					{
-						data: newProps.data.map(point => {
-							return {
-								x: new Date(point[0]),
-								y: [point[1], point[2], point[3], point[4]],
-							};
-						}),
-					},
-				],
-				[
-					{
-						name: 'macd',
-						data: macdResult.map((x, i) => {
-							return {
-								x: new Date(propsData[i][0]),
-								y: x.MACD,
-							};
-						}),
-					},
-					{
-						name: 'signal',
-						data: macdResult.map((x, i) => {
-							return {
-								x: new Date(propsData[i][0]),
-								y: x.signal,
-							};
-						}),
-					},
-					{
-						name: 'histogram',
-						data: macdResult.map((x, i) => {
-							return {
-								x: new Date(propsData[i][0]),
-								y: x.histogram,
-							};
-						}),
-					},
-				],
-			],
-		});
-	}
-
+class StockChart extends React.Component<StockChartProps, {}> {
 	render() {
-		const { data, ...otherProps } = this.props;
+		const { data, min, max, ...otherProps } = this.props;
 
 		if (!data) {
 			return (
@@ -151,21 +26,13 @@ class CandleStickChart extends React.Component<
 		}
 
 		return (
-			<div id="chart" {...otherProps}>
-				{this.state.series.map((series, i) => {
-					return (
-						<ReactApexChart
-							key={'chart-' + i}
-							options={this.state.chartOptions[i]}
-							series={series}
-							type={this.state.chartOptions[i].chart.type}
-							height={this.state.chartOptions[i].chart.height}
-						/>
-					);
-				})}
+			<div id="charts" {...otherProps}>
+				<Candles data={data} min={min} max={max} />
+				<MACD data={data} min={min} max={max} />
+				<RSI data={data} min={min} max={max} />
 			</div>
 		);
 	}
 }
 
-export default CandleStickChart;
+export default StockChart;
