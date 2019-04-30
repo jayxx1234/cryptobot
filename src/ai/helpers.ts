@@ -54,7 +54,7 @@ export interface ProcessedData {
 	Process the Finance API response (data)
 	Create the train freatures and labels for cnn
 	Each prediction is base on previous timePortion days
-	ex. timePortion=7, prediction for the next day is based to values of the previous 7 days
+	eg. timePortion=7, prediction for the next day is based to values of the previous 7 days
 */
 export const processData = function(data: OHLCV[], timePortion: number): Promise<ProcessedData> {
 	return new Promise(function(resolve: any, reject: any) {
@@ -64,7 +64,7 @@ export const processData = function(data: OHLCV[], timePortion: number): Promise
 
 		let features = new Float32Array(size);
 		for (let i = 0; i < size; i++) {
-			features[i] = data[i][4];
+			features[i] = data[i][3];
 		}
 
 		// Scale the values

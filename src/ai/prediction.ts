@@ -1,7 +1,8 @@
 import * as tf from '@tensorflow/tfjs';
 import moment from 'moment';
 import { OHLCV } from 'ccxt';
-import { allConfigs } from './config';
+import { allConfigs, configArrayToObject } from './config';
+import * as Indicators from './indicators';
 import {
 	minMaxScaler,
 	minMaxInverseScaler,
@@ -11,9 +12,19 @@ import {
 	toFloat32Array,
 } from './helpers';
 
+const epochs = 100;
+const timePortion = 100;
+
+let baseAmount = 0;
+let initialBaseAmount = 0;
+let coinAmount = 0;
+
 class CNN {
-	epochs = 100;
-	timePortion = 7;
+	async getIndicators(data: OHLCV[]) {
+		return await {
+			MACD: Indicators.MACD(data).map(x => x.histogram),
+		};
+	}
 
 	public async run(data: OHLCV[]) {
 		let self = this;
@@ -27,7 +38,7 @@ class CNN {
 		let labels = data.map(val => val[0]);
 
 		// Process the data and create the train sets
-		let result = await processData(data, self.timePortion);
+		let result = await processData(data, timePortion);
 		// Create the set for stock price prediction for the next day
 		let nextDayPrediction = generateNextDayPrediction(result.originalData, result.timePortion);
 		// Get the last date from the data set
@@ -48,7 +59,7 @@ class CNN {
 
 			// Train the model using the tensor data
 			// Repeat multiple epochs so the error rate is smaller (better fit for the data)
-			let model = await self.cnn(built.model, tensorData, self.epochs);
+			let model = await self.cnn(built.model, tensorData, epochs);
 			// Predict for the same train data
 			// We'll show both (original, predicted) sets on the graph
 			// so we can see how well our model fits the data
@@ -85,14 +96,16 @@ class CNN {
 
 			// Print the predicted stock price value for the next day
 			let dateString = moment(predictDate).format('DD-MM-YYYY');
-			let price = inversePredictedValue.data[0].toFixed(3);
-			console.log(`Predicted Stock Price for ${dateString} is: $${price}`);
+			let difference = inversePredictedValue.data[0];
+			let price = data[data.length - 1][4] + difference;
+			console.log(`Predicted Stock Price for ${dateString} is: ${price}`);
 		});
 	}
 
 	buildModels(data: any) {
 		let promises: Promise<{ model: tf.Sequential; data: any }>[] = [];
 		for (let config of allConfigs) {
+			let configObject = configArrayToObject(config);
 			promises.push(
 				new Promise(function(resolve, reject) {
 					// Linear (sequential) stack of layers
@@ -101,47 +114,47 @@ class CNN {
 					// Define input layer
 					model.add(
 						tf.layers.inputLayer({
-							inputShape: [config[0], config[1]],
+							inputShape: [timePortion, 1],
 						})
 					);
 
 					// Add the first convolutional layer
 					model.add(
 						tf.layers.conv1d({
-							kernelSize: config[2],
-							filters: config[3],
-							strides: config[4],
-							useBias: config[5],
-							activation: config[6],
-							kernelInitializer: config[7],
+							kernelSize: configObject.firstLayerKernelSize,
+							filters: configObject.firstLayerFilters,
+							strides: configObject.firstLayerStrides,
+							useBias: configObject.firstLayerUseBias,
+							activation: configObject.firstLayerActivation,
+							kernelInitializer: configObject.firstLayerKernelInitializer,
 						})
 					);
 
 					// Add the Average Pooling layer
 					model.add(
 						tf.layers.averagePooling1d({
-							poolSize: config[8],
-							strides: config[9],
+							poolSize: configObject.firstPoolingLayerPoolSize,
+							strides: configObject.firstPoolingLayerStrides,
 						})
 					);
 
 					// Add the second convolutional layer
 					model.add(
 						tf.layers.conv1d({
-							kernelSize: config[10],
-							filters: config[11],
-							strides: config[12],
-							useBias: config[13],
-							activation: config[14],
-							kernelInitializer: config[15],
+							kernelSize: configObject.secondLayerKernelSize,
+							filters: configObject.secondLayerFilters,
+							strides: configObject.secondLayerStrides,
+							useBias: configObject.secondLayerUseBias,
+							activation: configObject.secondLayerActivation,
+							kernelInitializer: configObject.secondLayerKernelInitializer,
 						})
 					);
 
 					// Add the Average Pooling layer
 					model.add(
 						tf.layers.averagePooling1d({
-							poolSize: config[16],
-							strides: config[17],
+							poolSize: configObject.secondPoolingLayerPoolSize,
+							strides: configObject.secondPoolingLayerStrides,
 						})
 					);
 
@@ -151,9 +164,9 @@ class CNN {
 					// Add Dense layer,
 					model.add(
 						tf.layers.dense({
-							units: config[18],
-							activation: config[19],
-							kernelInitializer: config[20],
+							units: configObject.denseUnits,
+							activation: configObject.denseActivation,
+							kernelInitializer: configObject.denseKernelInitializer,
 						})
 					);
 
@@ -168,7 +181,7 @@ class CNN {
 		return Promise.all(promises);
 	}
 
-	cnn(model: tf.Sequential, data: any, epochs: number = 100): Promise<tf.Sequential> {
+	cnn(model: tf.Sequential, data: any, epochs: number): Promise<tf.Sequential> {
 		console.log('MODEL SUMMARY: ');
 		model.summary();
 
@@ -181,12 +194,11 @@ class CNN {
 				let result = await model.fit(data.tensorTrainX, data.tensorTrainY, {
 					epochs: epochs,
 				});
-				/*for (let i = result.epoch.length-1; i < result.epoch.length; ++i) {
-						print("Loss after Epoch " + i + " : " + result.history.loss[i]);
-					}*/
-				console.log(
-					`Loss after last Epoch (${result.epoch.length}) is: ${result.history.loss[result.epoch.length - 1]}`
-				);
+
+				for (let i = 0; i < result.epoch.length; i++) {
+					console.log('Loss after Epoch ' + (i + 1) + ' : ' + result.history.loss[i]);
+				}
+
 				resolve(model);
 			} catch (ex) {
 				reject(ex);
