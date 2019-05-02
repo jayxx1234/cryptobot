@@ -18,10 +18,10 @@ export enum KernelInitializer {
 	'glorotNormal',
 	'glorotUniform',
 	'heNormal',
-	'identity',
+	// 'identity',
 	'leCunNormal',
 	'ones',
-	'orthogonal',
+	// 'orthogonal',
 	'randomNormal',
 	'randomUniform',
 	'truncatedNormal',
@@ -29,7 +29,7 @@ export enum KernelInitializer {
 	'zeros',
 }
 
-interface Config {
+export interface Config {
 	firstLayerKernelSize: number;
 	firstLayerFilters: number;
 	firstLayerStrides: number;
@@ -51,7 +51,7 @@ interface Config {
 	denseKernelInitializer: any;
 }
 
-interface ConfigOptions {
+export interface ConfigOptions {
 	firstLayerKernelSize: number[];
 	firstLayerFilters: number[];
 	firstLayerStrides: number[];

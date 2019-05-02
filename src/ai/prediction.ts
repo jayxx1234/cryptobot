@@ -1,7 +1,7 @@
 import * as tf from '@tensorflow/tfjs';
 import moment from 'moment';
 import { OHLCV } from 'ccxt';
-import { allConfigs, configArrayToObject } from './config';
+import { Config, allConfigs, configArrayToObject } from './config';
 import * as Indicators from './indicators';
 import {
 	minMaxScaler,
@@ -12,7 +12,7 @@ import {
 	toFloat32Array,
 } from './helpers';
 
-const epochs = 100;
+const epochs = 1;
 const timePortion = 100;
 
 let baseAmount = 0;
@@ -44,9 +44,15 @@ class CNN {
 		// Get the last date from the data set
 		let predictDate = addDays(new Date(labels[labels.length - 1]), 1);
 
-		let models = await self.buildModels(result);
+		console.log('Building models');
 
-		models.forEach(async built => {
+		let i = 0;
+		for (let config of allConfigs) {
+			i++;
+			console.log(`Building model ${i}`);
+			console.log(config);
+			let built = await self.buildModel(config, result);
+
 			// Transform the data to tensor data
 			// Reshape the data in neural network input format [number_of_samples, timePortion, 1];
 			let tensorData = {
@@ -57,9 +63,14 @@ class CNN {
 			let max = built.data.max;
 			let min = built.data.min;
 
+			console.log(`Training model ${i}`);
+
 			// Train the model using the tensor data
 			// Repeat multiple epochs so the error rate is smaller (better fit for the data)
 			let model = await self.cnn(built.model, tensorData, epochs);
+
+			console.log(`Predicting from model ${i}`);
+
 			// Predict for the same train data
 			// We'll show both (original, predicted) sets on the graph
 			// so we can see how well our model fits the data
@@ -98,87 +109,80 @@ class CNN {
 			let dateString = moment(predictDate).format('DD-MM-YYYY');
 			let difference = inversePredictedValue.data[0];
 			let price = data[data.length - 1][4] + difference;
-			console.log(`Predicted Stock Price for ${dateString} is: ${price}`);
-		});
+			console.log(`Predicted Stock Price for ${dateString} from model ${i} is: ${price}`);
+		}
 	}
 
-	buildModels(data: any) {
-		let promises: Promise<{ model: tf.Sequential; data: any }>[] = [];
-		for (let config of allConfigs) {
-			let configObject = configArrayToObject(config);
-			promises.push(
-				new Promise(function(resolve, reject) {
-					// Linear (sequential) stack of layers
-					const model = tf.sequential();
+	buildModel(config: Config[], data: any): Promise<{ model: tf.Sequential; data: any }> {
+		let configObject = configArrayToObject(config);
+		return new Promise(function(resolve, reject) {
+			// Linear (sequential) stack of layers
+			const model = tf.sequential();
 
-					// Define input layer
-					model.add(
-						tf.layers.inputLayer({
-							inputShape: [timePortion, 1],
-						})
-					);
-
-					// Add the first convolutional layer
-					model.add(
-						tf.layers.conv1d({
-							kernelSize: configObject.firstLayerKernelSize,
-							filters: configObject.firstLayerFilters,
-							strides: configObject.firstLayerStrides,
-							useBias: configObject.firstLayerUseBias,
-							activation: configObject.firstLayerActivation,
-							kernelInitializer: configObject.firstLayerKernelInitializer,
-						})
-					);
-
-					// Add the Average Pooling layer
-					model.add(
-						tf.layers.averagePooling1d({
-							poolSize: configObject.firstPoolingLayerPoolSize,
-							strides: configObject.firstPoolingLayerStrides,
-						})
-					);
-
-					// Add the second convolutional layer
-					model.add(
-						tf.layers.conv1d({
-							kernelSize: configObject.secondLayerKernelSize,
-							filters: configObject.secondLayerFilters,
-							strides: configObject.secondLayerStrides,
-							useBias: configObject.secondLayerUseBias,
-							activation: configObject.secondLayerActivation,
-							kernelInitializer: configObject.secondLayerKernelInitializer,
-						})
-					);
-
-					// Add the Average Pooling layer
-					model.add(
-						tf.layers.averagePooling1d({
-							poolSize: configObject.secondPoolingLayerPoolSize,
-							strides: configObject.secondPoolingLayerStrides,
-						})
-					);
-
-					// Add Flatten layer, reshape input to (number of samples, number of features)
-					model.add(tf.layers.flatten({}));
-
-					// Add Dense layer,
-					model.add(
-						tf.layers.dense({
-							units: configObject.denseUnits,
-							activation: configObject.denseActivation,
-							kernelInitializer: configObject.denseKernelInitializer,
-						})
-					);
-
-					return resolve({
-						model: model,
-						data: data,
-					});
+			// Define input layer
+			model.add(
+				tf.layers.inputLayer({
+					inputShape: [timePortion, 1],
 				})
 			);
-			break;
-		}
-		return Promise.all(promises);
+
+			// Add the first convolutional layer
+			model.add(
+				tf.layers.conv1d({
+					kernelSize: configObject.firstLayerKernelSize,
+					filters: configObject.firstLayerFilters,
+					strides: configObject.firstLayerStrides,
+					useBias: configObject.firstLayerUseBias,
+					activation: configObject.firstLayerActivation,
+					kernelInitializer: configObject.firstLayerKernelInitializer,
+				})
+			);
+
+			// Add the Average Pooling layer
+			model.add(
+				tf.layers.averagePooling1d({
+					poolSize: configObject.firstPoolingLayerPoolSize,
+					strides: configObject.firstPoolingLayerStrides,
+				})
+			);
+
+			// Add the second convolutional layer
+			model.add(
+				tf.layers.conv1d({
+					kernelSize: configObject.secondLayerKernelSize,
+					filters: configObject.secondLayerFilters,
+					strides: configObject.secondLayerStrides,
+					useBias: configObject.secondLayerUseBias,
+					activation: configObject.secondLayerActivation,
+					kernelInitializer: configObject.secondLayerKernelInitializer,
+				})
+			);
+
+			// Add the Average Pooling layer
+			model.add(
+				tf.layers.averagePooling1d({
+					poolSize: configObject.secondPoolingLayerPoolSize,
+					strides: configObject.secondPoolingLayerStrides,
+				})
+			);
+
+			// Add Flatten layer, reshape input to (number of samples, number of features)
+			model.add(tf.layers.flatten({}));
+
+			// Add Dense layer,
+			model.add(
+				tf.layers.dense({
+					units: configObject.denseUnits,
+					activation: configObject.denseActivation,
+					kernelInitializer: configObject.denseKernelInitializer,
+				})
+			);
+
+			return resolve({
+				model: model,
+				data: data,
+			});
+		});
 	}
 
 	cnn(model: tf.Sequential, data: any, epochs: number): Promise<tf.Sequential> {
