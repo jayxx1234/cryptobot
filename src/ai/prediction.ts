@@ -49,8 +49,9 @@ class CNN {
 		let i = 0;
 		for (let config of allConfigs) {
 			i++;
-			console.log(`Building model ${i}`);
+			console.log(`Model ${i}`);
 			console.log(config);
+
 			let built = await self.buildModel(config, result);
 
 			// Transform the data to tensor data
@@ -63,18 +64,14 @@ class CNN {
 			let max = built.data.max;
 			let min = built.data.min;
 
-			console.log(`Training model ${i}`);
-
 			// Train the model using the tensor data
 			// Repeat multiple epochs so the error rate is smaller (better fit for the data)
-			let model = await self.cnn(built.model, tensorData, epochs);
-
-			console.log(`Predicting from model ${i}`);
+			let cnn = await self.cnn(built.model, tensorData, epochs);
 
 			// Predict for the same train data
 			// We'll show both (original, predicted) sets on the graph
 			// so we can see how well our model fits the data
-			var predictedX = model.predict(tensorData.tensorTrainX) as tf.Tensor<tf.Rank>;
+			var predictedX = cnn.model.predict(tensorData.tensorTrainX) as tf.Tensor<tf.Rank>;
 
 			// Scale the next day features
 			let nextDayPredictionScaled = minMaxScaler(nextDayPrediction, min, max);
@@ -83,7 +80,7 @@ class CNN {
 				.tensor1d(nextDayPredictionScaled.data)
 				.reshape([1, built.data.timePortion, 1]);
 			// Predict the next day stock price
-			let predictedValue = model.predict(tensorNextDayPrediction) as tf.Tensor<tf.Rank>;
+			let predictedValue = cnn.model.predict(tensorNextDayPrediction) as tf.Tensor<tf.Rank>;
 
 			// Get the predicted data for the train set
 			let predValue = await predictedValue.data();
@@ -109,6 +106,7 @@ class CNN {
 			let dateString = moment(predictDate).format('DD-MM-YYYY');
 			let difference = inversePredictedValue.data[0];
 			let price = data[data.length - 1][4] + difference;
+			console.log(`Loss after last Epoch: ${cnn.history.history.loss[cnn.history.epoch.length - 1]}`);
 			console.log(`Predicted Stock Price for ${dateString} from model ${i} is: ${price}`);
 		}
 	}
@@ -185,10 +183,7 @@ class CNN {
 		});
 	}
 
-	cnn(model: tf.Sequential, data: any, epochs: number): Promise<tf.Sequential> {
-		console.log('MODEL SUMMARY: ');
-		model.summary();
-
+	cnn(model: tf.Sequential, data: any, epochs: number): Promise<{ model: tf.Sequential; history: tf.History }> {
 		return new Promise(async function(resolve, reject) {
 			try {
 				// Optimize using adam (adaptive moment estimation) algorithm
@@ -199,11 +194,14 @@ class CNN {
 					epochs: epochs,
 				});
 
-				for (let i = 0; i < result.epoch.length; i++) {
-					console.log('Loss after Epoch ' + (i + 1) + ' : ' + result.history.loss[i]);
-				}
+				// for (let i = 0; i < result.epoch.length; i++) {
+				// 	console.log('Loss after Epoch ' + (i + 1) + ' : ' + result.history.loss[i]);
+				// }
 
-				resolve(model);
+				resolve({
+					model,
+					history: result,
+				});
 			} catch (ex) {
 				reject(ex);
 			}
