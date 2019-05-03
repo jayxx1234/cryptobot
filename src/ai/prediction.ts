@@ -15,9 +15,14 @@ import {
 const epochs = 1;
 const timePortion = 100;
 
-let baseAmount = 0;
-let initialBaseAmount = 0;
-let coinAmount = 0;
+let predictionResults: {
+	index: number;
+	loss: number;
+	prediction: number;
+	difference: number;
+}[] = [];
+
+let configs: Config[] = [];
 
 class CNN {
 	async getIndicators(data: OHLCV[]) {
@@ -47,10 +52,9 @@ class CNN {
 		console.log('Building models');
 
 		let i = 0;
-		for (let config of allConfigs) {
-			i++;
-			console.log(`Model ${i}`);
-			console.log(config);
+		for (let configArray of allConfigs) {
+			let config = configArrayToObject(configArray);
+			configs.push(config);
 
 			let built = await self.buildModel(config, result);
 
@@ -105,14 +109,29 @@ class CNN {
 			// Print the predicted stock price value for the next day
 			let dateString = moment(predictDate).format('DD-MM-YYYY');
 			let difference = inversePredictedValue.data[0];
-			let price = data[data.length - 1][4] + difference;
-			console.log(`Loss after last Epoch: ${cnn.history.history.loss[cnn.history.epoch.length - 1]}`);
-			console.log(`Predicted Stock Price for ${dateString} from model ${i} is: ${price}`);
+			let price = data[data.length - 1][4] * (1 + difference);
+			const loss = cnn.history.history.loss[cnn.history.epoch.length - 1] as number;
+			console.log(`Model ${i} Loss:  ${loss}`);
+			console.log(`Model ${i} Price: ${price}`);
+
+			predictionResults.push({
+				index: i,
+				loss,
+				prediction: price,
+				difference,
+			});
+
+			i++;
+			if (i >= 20) break;
 		}
+		console.clear();
+		console.log(configs);
+		predictionResults = predictionResults.sort((a, b) => a.loss - b.loss);
+		console.table(predictionResults);
+		console.log(configs);
 	}
 
-	buildModel(config: Config[], data: any): Promise<{ model: tf.Sequential; data: any }> {
-		let configObject = configArrayToObject(config);
+	buildModel(config: Config, data: any): Promise<{ model: tf.Sequential; data: any }> {
 		return new Promise(function(resolve, reject) {
 			// Linear (sequential) stack of layers
 			const model = tf.sequential();
@@ -127,40 +146,40 @@ class CNN {
 			// Add the first convolutional layer
 			model.add(
 				tf.layers.conv1d({
-					kernelSize: configObject.firstLayerKernelSize,
-					filters: configObject.firstLayerFilters,
-					strides: configObject.firstLayerStrides,
-					useBias: configObject.firstLayerUseBias,
-					activation: configObject.firstLayerActivation,
-					kernelInitializer: configObject.firstLayerKernelInitializer,
+					kernelSize: config.firstLayerKernelSize,
+					filters: config.firstLayerFilters,
+					strides: config.firstLayerStrides,
+					useBias: config.firstLayerUseBias,
+					activation: config.firstLayerActivation,
+					kernelInitializer: config.firstLayerKernelInitializer,
 				})
 			);
 
 			// Add the Average Pooling layer
 			model.add(
 				tf.layers.averagePooling1d({
-					poolSize: configObject.firstPoolingLayerPoolSize,
-					strides: configObject.firstPoolingLayerStrides,
+					poolSize: config.firstPoolingLayerPoolSize,
+					strides: config.firstPoolingLayerStrides,
 				})
 			);
 
 			// Add the second convolutional layer
 			model.add(
 				tf.layers.conv1d({
-					kernelSize: configObject.secondLayerKernelSize,
-					filters: configObject.secondLayerFilters,
-					strides: configObject.secondLayerStrides,
-					useBias: configObject.secondLayerUseBias,
-					activation: configObject.secondLayerActivation,
-					kernelInitializer: configObject.secondLayerKernelInitializer,
+					kernelSize: config.secondLayerKernelSize,
+					filters: config.secondLayerFilters,
+					strides: config.secondLayerStrides,
+					useBias: config.secondLayerUseBias,
+					activation: config.secondLayerActivation,
+					kernelInitializer: config.secondLayerKernelInitializer,
 				})
 			);
 
 			// Add the Average Pooling layer
 			model.add(
 				tf.layers.averagePooling1d({
-					poolSize: configObject.secondPoolingLayerPoolSize,
-					strides: configObject.secondPoolingLayerStrides,
+					poolSize: config.secondPoolingLayerPoolSize,
+					strides: config.secondPoolingLayerStrides,
 				})
 			);
 
@@ -170,9 +189,9 @@ class CNN {
 			// Add Dense layer,
 			model.add(
 				tf.layers.dense({
-					units: configObject.denseUnits,
-					activation: configObject.denseActivation,
-					kernelInitializer: configObject.denseKernelInitializer,
+					units: config.denseUnits,
+					activation: config.denseActivation,
+					kernelInitializer: config.denseKernelInitializer,
 				})
 			);
 

@@ -99,7 +99,7 @@ export const ranges: ConfigOptions = {
 	denseKernelInitializer: Object.keys(KernelInitializer).filter(k => typeof KernelInitializer[k] === 'number'),
 };
 
-export const configObjectToArray = (config: Config | ConfigOptions): any[] => {
+const configObjectToArray = (config: Config | ConfigOptions): any[] => {
 	return [
 		config.firstLayerKernelSize,
 		config.firstLayerFilters,
