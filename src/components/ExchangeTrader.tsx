@@ -142,7 +142,7 @@ class ExchangeTrader extends React.Component<{ exchange: string | null }, {}> {
 
 	public render() {
 		return (
-			<Paper className="main">
+			<Paper className="main paper">
 				<Typography variant="h2" component="h1" style={{ lineHeight: 1.2 }}>
 					{this.getHeader()}
 				</Typography>
