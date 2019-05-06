@@ -145,11 +145,11 @@ export interface RSIConfigOptions {
 }
 
 export const macdOptions: MACDConfigOptions = {
-	fastPeriod: [6, 12, 18, 24, 30],
-	slowPeriod: [13, 26, 39, 52, 65],
-	signalPeriod: [5, 10, 15, 20, 25],
-	SimpleMAOscillator: [false, true],
-	SimpleMASignal: [false, true],
+	fastPeriod: [12, 24],
+	slowPeriod: [26, 52],
+	signalPeriod: [9, 18],
+	SimpleMAOscillator: [false],
+	SimpleMASignal: [false],
 };
 
 export const rsiOptions: RSIConfigOptions = {
