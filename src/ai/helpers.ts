@@ -4,7 +4,7 @@ import { OHLCV } from 'ccxt';
 	Scaling feature using min-max normalization.
 	All values will be between 0 and 1
 */
-export const minMaxScaler = function(data: Float32Array, min: number, max: number) {
+export const minMaxScaler = function(data: number[], min: number, max: number) {
 	let scaledData: number[] = [];
 	data.forEach((value: number) => {
 		scaledData.push((value - min) / (max - min));
@@ -17,17 +17,10 @@ export const minMaxScaler = function(data: Float32Array, min: number, max: numbe
 	};
 };
 
-export const toNumberArray = function(arr: Float32Array) {
-	return Array.from(arr);
-};
-export const toFloat32Array = function(arr: number[]) {
-	return new Float32Array(arr);
-};
-
 /*
 	Revert min-max normalization and get the real values
 */
-export const minMaxInverseScaler = function(data: Float32Array, min: number, max: number) {
+export const minMaxInverseScaler = function(data: number[], min: number, max: number) {
 	let scaledData: number[] = [];
 	data.forEach((value: number) => {
 		scaledData.push(value * (max - min) + min);
@@ -43,57 +36,74 @@ export const minMaxInverseScaler = function(data: Float32Array, min: number, max
 export interface ProcessedData {
 	size: number;
 	timePortion: number;
-	trainX: number[];
-	trainY: number[];
-	min: number;
-	max: number;
-	originalData: Float32Array;
+	trainX: number[][];
+	trainY: number[][];
+	dataMin: number;
+	dataMax: number;
+	originalData: number[][];
+	indicatorsMin: number[];
+	indicatorsMax: number[];
 }
 
-/*
-	Process the Finance API response (data)
-	Create the train freatures and labels for cnn
-	Each prediction is base on previous timePortion days
-	eg. timePortion=7, prediction for the next day is based to values of the previous 7 days
-*/
-export const processData = function(data: OHLCV[], timePortion: number): Promise<ProcessedData> {
+export const processData = function(
+	data: OHLCV[],
+	indicators: number[][],
+	timePortion: number
+): Promise<ProcessedData> {
 	return new Promise(function(resolve: any, reject: any) {
 		let trainX = [],
 			trainY = [],
 			size = data.length;
 
-		let features = new Float32Array(size);
-		for (let i = 0; i < size; i++) {
-			features[i] = data[i][3];
-		}
+		let closePrices = data.map(x => x[3]);
+		let scaledClose = minMaxScaler(closePrices, getMin(closePrices), getMax(closePrices));
+		let scaledCloseFeatures = scaledClose.data;
 
 		// Scale the values
-		var scaledData = minMaxScaler(features, getMin(features), getMax(features));
-		let scaledFeatures = scaledData.data;
+		let scaledIndicators = [];
+		let scaledIndicatorFeatures = [];
+		for (let i = 0; i < indicators.length; i++) {
+			scaledIndicators.push(minMaxScaler(indicators[i], getMin(indicators[i]), getMax(indicators[i])));
+			scaledIndicatorFeatures.push(scaledIndicators[i].data);
+		}
+
+		let features: number[][] = [];
+		for (let i = 0; i < size; i++) {
+			let indicatorFeatures = [];
+			for (let j = 0; j < indicators.length; j++) {
+				indicatorFeatures.push(scaledIndicatorFeatures[j][i] || 0);
+			}
+
+			features.push([scaledCloseFeatures[i], ...indicatorFeatures]);
+		}
 
 		try {
 			// Create the train sets
 			for (let i = timePortion; i < size; i++) {
 				for (let j = i - timePortion; j < i; j++) {
-					trainX.push(scaledFeatures[j]);
+					trainX.push(features[j]);
 				}
 
-				trainY.push(scaledFeatures[i]);
+				trainY.push(features[i]);
 			}
 		} catch (ex) {
 			reject(ex);
 			console.log(ex);
 		}
 
-		return resolve({
+		let ret: ProcessedData = {
 			size: size - timePortion,
 			timePortion: timePortion,
 			trainX: trainX,
 			trainY: trainY,
-			min: scaledData.min,
-			max: scaledData.max,
+			dataMin: scaledClose.min,
+			dataMax: scaledClose.max,
+			indicatorsMin: scaledIndicators.map(x => x.min),
+			indicatorsMax: scaledIndicators.map(x => x.max),
 			originalData: features,
-		});
+		};
+
+		return resolve(ret);
 	});
 };
 
@@ -101,12 +111,12 @@ export const processData = function(data: OHLCV[], timePortion: number): Promise
 	This will take the last timePortion days from the data
 	and they will be used to predict the next day stock price
 */
-export const generateNextDayPrediction = function(data: Float32Array, timePortion: number): Float32Array {
+export const getDataForNextDayPrediction = function(data: number[][], timePortion: number): number[][] {
 	let size = data.length;
-	let features = new Float32Array(timePortion);
+	let features = [];
 
 	for (let i = size - timePortion; i < size; i++) {
-		features[i] = data[i];
+		features.push(data[i]);
 	}
 
 	return features;
@@ -115,14 +125,14 @@ export const generateNextDayPrediction = function(data: Float32Array, timePortio
 /*
 	Get min value from array
 */
-export const getMin = function(data: Float32Array) {
+export const getMin = function(data: number[]) {
 	return Math.min(...data);
 };
 
 /*
 	Get max value from array
 */
-export const getMax = function(data: Float32Array) {
+export const getMax = function(data: number[]) {
 	return Math.max(...data);
 };
 

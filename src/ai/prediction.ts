@@ -1,19 +1,19 @@
 import * as tf from '@tensorflow/tfjs';
 import moment from 'moment';
 import { OHLCV } from 'ccxt';
-import { Config, allConfigs, configArrayToObject } from './config';
+import { Config, cnnOptions, macdConfigs, rsiConfigs } from './config';
 import * as Indicators from './indicators';
 import {
 	minMaxScaler,
 	minMaxInverseScaler,
 	addDays,
 	processData,
-	generateNextDayPrediction,
-	toFloat32Array,
+	getDataForNextDayPrediction,
+	ProcessedData,
 } from './helpers';
+import { MACDOutput } from 'technicalindicators/declarations/moving_averages/MACD';
 
 const epochs = 1;
-const timePortion = 100;
 
 let predictionResults: {
 	index: number;
@@ -23,18 +23,27 @@ let predictionResults: {
 }[] = [];
 
 let configs: Config[] = [];
+let processedData = {};
+let nextDayPredictions = {};
 
 class CNN {
-	async getIndicators(data: OHLCV[]) {
-		return await {
-			MACD: Indicators.MACD(data).map(x => x.histogram),
-		};
-	}
+	indicators: any[] = [];
 
 	public async run(data: OHLCV[]) {
 		let self = this;
-		// Initialize the graph
-		// plotData([], []);
+
+		this.indicators = [];
+
+		for (let conf of macdConfigs) {
+			let macdResult = Indicators.MACD(data, conf).result as MACDOutput[];
+			this.indicators.push(macdResult.map(x => x.MACD));
+			this.indicators.push(macdResult.map(x => x.histogram));
+			this.indicators.push(macdResult.map(x => x.signal));
+		}
+		for (let conf of rsiConfigs) {
+			let rsiResult = Indicators.RSI(data, conf).result as number[];
+			this.indicators.push(rsiResult);
+		}
 
 		console.clear();
 		console.log('Beginning Stock Prediction ...');
@@ -42,35 +51,45 @@ class CNN {
 		// Get the datetime labels use in graph
 		let labels = data.map(val => val[0]);
 
-		// Process the data and create the train sets
-		let result = await processData(data, timePortion);
-		// Create the set for stock price prediction for the next day
-		let nextDayPrediction = generateNextDayPrediction(result.originalData, result.timePortion);
-		// Get the last date from the data set
-		let predictDate = addDays(new Date(labels[labels.length - 1]), 1);
-
 		console.log('Building models');
 
 		let i = 0;
-		for (let configArray of allConfigs) {
-			let config = configArrayToObject(configArray);
+		for (let configArray of cnnOptions) {
+			let config = configArray;
 			configs.push(config);
 
-			let built = await self.buildModel(config, result);
+			// Process the data and create the train sets
+			if (!processedData[config.timePortion])
+				processedData[config.timePortion] = await processData(data, this.indicators, config.timePortion);
+
+			let result = processedData[config.timePortion] as ProcessedData;
+
+			// Create the set for stock price prediction for the next day
+			if (!nextDayPredictions[result.timePortion])
+				nextDayPredictions[result.timePortion] = getDataForNextDayPrediction(
+					result.originalData,
+					result.timePortion
+				);
+
+			let nextDayPrediction = nextDayPredictions[result.timePortion] as number[][];
+
+			let model = await self.buildModel(config);
 
 			// Transform the data to tensor data
 			// Reshape the data in neural network input format [number_of_samples, timePortion, 1];
 			let tensorData = {
-				tensorTrainX: tf.tensor1d(built.data.trainX).reshape([built.data.size, built.data.timePortion, 1]),
-				tensorTrainY: tf.tensor1d(built.data.trainY),
+				tensorTrainX: tf
+					.tensor2d(result.trainX)
+					.reshape([result.size, result.timePortion, this.indicators.length + 1, 1]),
+				tensorTrainY: tf.tensor2d(result.trainY),
 			};
 			// Rember the min and max in order to revert (min-max scaler) the scaled data later
-			let max = built.data.max;
-			let min = built.data.min;
+			let max = result.dataMax;
+			let min = result.dataMin;
 
 			// Train the model using the tensor data
 			// Repeat multiple epochs so the error rate is smaller (better fit for the data)
-			let cnn = await self.cnn(built.model, tensorData, epochs);
+			let cnn = await self.cnn(model, tensorData, epochs);
 
 			// Predict for the same train data
 			// We'll show both (original, predicted) sets on the graph
@@ -78,41 +97,39 @@ class CNN {
 			var predictedX = cnn.model.predict(tensorData.tensorTrainX) as tf.Tensor<tf.Rank>;
 
 			// Scale the next day features
-			let nextDayPredictionScaled = minMaxScaler(nextDayPrediction, min, max);
+			let nextDayPredictionScaled = nextDayPrediction.map(x => minMaxScaler(x, min, max).data);
 			// Transform to tensor data
 			let tensorNextDayPrediction = tf
-				.tensor1d(nextDayPredictionScaled.data)
-				.reshape([1, built.data.timePortion, 1]);
+				.tensor2d(nextDayPredictionScaled)
+				.reshape([1, result.timePortion, this.indicators.length + 1, 1]);
 			// Predict the next day stock price
 			let predictedValue = cnn.model.predict(tensorNextDayPrediction) as tf.Tensor<tf.Rank>;
 
 			// Get the predicted data for the train set
 			let predValue = await predictedValue.data();
 			// Revert the scaled features, so we get the real values
-			let inversePredictedValue = minMaxInverseScaler(predValue as Float32Array, min, max);
+			let inversePredictedValue = minMaxInverseScaler(Array.from(predValue), min, max);
 
 			// Get the next day predicted value
 			let pred = await predictedX.data();
 			// Revert the scaled feature
-			var predictedXInverse = minMaxInverseScaler(pred as Float32Array, min, max);
+			var predictedXInverse = minMaxInverseScaler(Array.from(pred), min, max);
 
 			// Add the next day predicted stock price so it's shown on the graph
 			predictedXInverse.data[predictedXInverse.data.length] = inversePredictedValue.data[0];
 
 			// Revert the scaled labels from the trainY (original),
 			// so we can compare them with the predicted one
-			var trainYInverse = minMaxInverseScaler(toFloat32Array(built.data.trainY), min, max);
+			// var trainYInverse = minMaxInverseScaler(result.trainY, min, max);
 
 			// Plot the original (trainY) and predicted values for the same features set (trainX)
 			// plotData(trainYInverse.data, predictedXInverse.data, labels);
 
 			// Print the predicted stock price value for the next day
-			let dateString = moment(predictDate).format('DD-MM-YYYY');
 			let difference = inversePredictedValue.data[0];
 			let price = data[data.length - 1][4] * (1 + difference);
 			const loss = cnn.history.history.loss[cnn.history.epoch.length - 1] as number;
-			console.log(`Model ${i} Loss:  ${loss}`);
-			console.log(`Model ${i} Price: ${price}`);
+			console.log(`Model ${i} Loss: ${loss.toFixed(20)}, Price: ${price.toFixed(20)}`);
 
 			predictionResults.push({
 				index: i,
@@ -122,7 +139,7 @@ class CNN {
 			});
 
 			i++;
-			if (i >= 20) break;
+			if (i >= 2000) break;
 		}
 		console.clear();
 		console.log(configs);
@@ -131,7 +148,8 @@ class CNN {
 		console.log(configs);
 	}
 
-	buildModel(config: Config, data: any): Promise<{ model: tf.Sequential; data: any }> {
+	buildModel(config: Config): Promise<tf.Sequential> {
+		let self = this;
 		return new Promise(function(resolve, reject) {
 			// Linear (sequential) stack of layers
 			const model = tf.sequential();
@@ -139,13 +157,13 @@ class CNN {
 			// Define input layer
 			model.add(
 				tf.layers.inputLayer({
-					inputShape: [timePortion, 1],
+					inputShape: [config.timePortion, self.indicators.length + 1, 1],
 				})
 			);
 
 			// Add the first convolutional layer
 			model.add(
-				tf.layers.conv1d({
+				tf.layers.conv2d({
 					kernelSize: config.firstLayerKernelSize,
 					filters: config.firstLayerFilters,
 					strides: config.firstLayerStrides,
@@ -157,7 +175,7 @@ class CNN {
 
 			// Add the Average Pooling layer
 			model.add(
-				tf.layers.averagePooling1d({
+				tf.layers.averagePooling2d({
 					poolSize: config.firstPoolingLayerPoolSize,
 					strides: config.firstPoolingLayerStrides,
 				})
@@ -165,7 +183,7 @@ class CNN {
 
 			// Add the second convolutional layer
 			model.add(
-				tf.layers.conv1d({
+				tf.layers.conv2d({
 					kernelSize: config.secondLayerKernelSize,
 					filters: config.secondLayerFilters,
 					strides: config.secondLayerStrides,
@@ -177,7 +195,7 @@ class CNN {
 
 			// Add the Average Pooling layer
 			model.add(
-				tf.layers.averagePooling1d({
+				tf.layers.averagePooling2d({
 					poolSize: config.secondPoolingLayerPoolSize,
 					strides: config.secondPoolingLayerStrides,
 				})
@@ -186,19 +204,16 @@ class CNN {
 			// Add Flatten layer, reshape input to (number of samples, number of features)
 			model.add(tf.layers.flatten({}));
 
-			// Add Dense layer,
+			// Add Dense layer
 			model.add(
 				tf.layers.dense({
-					units: config.denseUnits,
+					units: self.indicators.length + 1,
 					activation: config.denseActivation,
 					kernelInitializer: config.denseKernelInitializer,
 				})
 			);
 
-			return resolve({
-				model: model,
-				data: data,
-			});
+			return resolve(model);
 		});
 	}
 
@@ -212,10 +227,6 @@ class CNN {
 				let result = await model.fit(data.tensorTrainX, data.tensorTrainY, {
 					epochs: epochs,
 				});
-
-				// for (let i = 0; i < result.epoch.length; i++) {
-				// 	console.log('Loss after Epoch ' + (i + 1) + ' : ' + result.history.loss[i]);
-				// }
 
 				resolve({
 					model,

@@ -14,20 +14,37 @@ export enum Activation {
 	'tanh',
 }
 export enum KernelInitializer {
-	// 'constant',
+	// 'constant', // doesn't work
 	'glorotNormal',
 	'glorotUniform',
 	'heNormal',
-	// 'identity',
+	// 'identity', // doesn't work
 	'leCunNormal',
-	'ones',
-	// 'orthogonal',
+	// 'ones', // awful accuracy
+	// 'orthogonal', // doesn't work
 	'randomNormal',
 	'randomUniform',
 	'truncatedNormal',
 	'varianceScaling',
 	'zeros',
 }
+
+const configObjectToArray = (config: {}): any[] => {
+	return Object.keys(config).map(k => config[k]);
+};
+
+export const configArrayToObject = (config: any[], keys: string[]): {} => {
+	let obj = {};
+	keys.forEach((k, n) => (obj[k] = config[n]));
+	return obj;
+};
+
+const generateCartesian = function*<T, O>(options: O): IterableIterator<T> {
+	let ops = G.clone.cartesian(...configObjectToArray(options)) as IterableIterator<any[]>;
+	for (let op of ops) {
+		yield configArrayToObject(op, Object.keys(options)) as T;
+	}
+};
 
 export interface Config {
 	firstLayerKernelSize: number;
@@ -49,6 +66,7 @@ export interface Config {
 	denseUnits: number;
 	denseActivation: any;
 	denseKernelInitializer: any;
+	timePortion: number;
 }
 
 export interface ConfigOptions {
@@ -71,9 +89,10 @@ export interface ConfigOptions {
 	denseUnits: number[];
 	denseActivation: any[];
 	denseKernelInitializer: any[];
+	timePortion: number[];
 }
 
-export const ranges: ConfigOptions = {
+export const configOptions: ConfigOptions = {
 	firstLayerKernelSize: [2],
 	firstLayerFilters: [128],
 	firstLayerStrides: [1],
@@ -97,54 +116,94 @@ export const ranges: ConfigOptions = {
 	denseUnits: [1],
 	denseActivation: Object.keys(Activation).filter(k => typeof Activation[k] === 'number'),
 	denseKernelInitializer: Object.keys(KernelInitializer).filter(k => typeof KernelInitializer[k] === 'number'),
+
+	timePortion: [30], // 30 appears optimal
 };
 
-const configObjectToArray = (config: Config | ConfigOptions): any[] => {
-	return [
-		config.firstLayerKernelSize,
-		config.firstLayerFilters,
-		config.firstLayerStrides,
-		config.firstLayerUseBias,
-		config.firstLayerActivation,
-		config.firstLayerKernelInitializer,
-		config.firstPoolingLayerPoolSize,
-		config.firstPoolingLayerStrides,
-		config.secondLayerKernelSize,
-		config.secondLayerFilters,
-		config.secondLayerStrides,
-		config.secondLayerUseBias,
-		config.secondLayerActivation,
-		config.secondLayerKernelInitializer,
-		config.secondPoolingLayerPoolSize,
-		config.secondPoolingLayerStrides,
-		config.denseUnits,
-		config.denseActivation,
-		config.denseKernelInitializer,
-	];
+export interface MACDConfig {
+	fastPeriod: number;
+	slowPeriod: number;
+	signalPeriod: number;
+	SimpleMAOscillator: boolean;
+	SimpleMASignal: boolean;
+}
+
+export interface MACDConfigOptions {
+	fastPeriod: number[];
+	slowPeriod: number[];
+	signalPeriod: number[];
+	SimpleMAOscillator: boolean[];
+	SimpleMASignal: boolean[];
+}
+
+export interface RSIConfig {
+	period: number;
+}
+
+export interface RSIConfigOptions {
+	period: number[];
+}
+
+export const macdOptions: MACDConfigOptions = {
+	fastPeriod: [6, 12, 18, 24, 30],
+	slowPeriod: [13, 26, 39, 52, 65],
+	signalPeriod: [5, 10, 15, 20, 25],
+	SimpleMAOscillator: [false, true],
+	SimpleMASignal: [false, true],
 };
 
-export const configArrayToObject = (config: any[]): Config => {
-	return {
-		firstLayerKernelSize: config[0],
-		firstLayerFilters: config[1],
-		firstLayerStrides: config[2],
-		firstLayerUseBias: config[3],
-		firstLayerActivation: config[4],
-		firstLayerKernelInitializer: config[5],
-		firstPoolingLayerPoolSize: config[6],
-		firstPoolingLayerStrides: config[7],
-		secondLayerKernelSize: config[8],
-		secondLayerFilters: config[9],
-		secondLayerStrides: config[10],
-		secondLayerUseBias: config[11],
-		secondLayerActivation: config[12],
-		secondLayerKernelInitializer: config[13],
-		secondPoolingLayerPoolSize: config[14],
-		secondPoolingLayerStrides: config[15],
-		denseUnits: config[16],
-		denseActivation: config[17],
-		denseKernelInitializer: config[18],
-	};
+export const rsiOptions: RSIConfigOptions = {
+	period: [14],
 };
 
-export const allConfigs = G.clone.cartesian(...configObjectToArray(ranges)) as IterableIterator<any[]>;
+export const cnnOptions = generateCartesian<Config, ConfigOptions>(configOptions);
+export const macdConfigs = generateCartesian<MACDConfig, MACDConfigOptions>(macdOptions);
+export const rsiConfigs = generateCartesian<RSIConfig, RSIConfigOptions>(rsiOptions);
+
+/*
+Optimal config so far appears to be: {
+	denseActivation: "elu",
+	denseKernelInitializer: "randomNormal",
+	denseUnits: 1,
+	firstLayerActivation: "elu",
+	firstLayerFilters: 128,
+	firstLayerKernelInitializer: "glorotNormal",
+	firstLayerKernelSize: 2,
+	firstLayerStrides: 1,
+	firstLayerUseBias: false,
+	firstPoolingLayerPoolSize: 2,
+	firstPoolingLayerStrides: 1,
+	secondLayerActivation: "elu",
+	secondLayerFilters: 64,
+	secondLayerKernelInitializer: "glorotNormal",
+	secondLayerKernelSize: 2,
+	secondLayerStrides: 1,
+	secondLayerUseBias: false,
+	secondPoolingLayerPoolSize: 2,
+	secondPoolingLayerStrides: 1,
+	timePortion: 30,
+} with accuracy of 0.01111993566155433655
+
+Better in longer run: {
+	denseActivation: "relu",
+	denseKernelInitializer: "randomNormal",
+	denseUnits: 1,
+	firstLayerActivation: "elu",
+	firstLayerFilters: 128,
+	firstLayerKernelInitializer: "glorotNormal",
+	firstLayerKernelSize: 2,
+	firstLayerStrides: 1,
+	firstLayerUseBias: false,
+	firstPoolingLayerPoolSize: 2,
+	firstPoolingLayerStrides: 1,
+	secondLayerActivation: "elu",
+	secondLayerFilters: 64,
+	secondLayerKernelInitializer: "glorotNormal",
+	secondLayerKernelSize: 2,
+	secondLayerStrides: 1,
+	secondLayerUseBias: false,
+	secondPoolingLayerPoolSize: 2,
+	secondPoolingLayerStrides: 1,
+	timePortion: 30,
+} with accuracy of 0.011454222723841667
+*/

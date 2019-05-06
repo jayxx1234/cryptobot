@@ -1,26 +1,18 @@
 import * as Indicators from 'technicalindicators';
 import { OHLCV } from 'ccxt';
+import { Indicator } from 'technicalindicators/declarations/indicator/indicator';
+import { MACDConfig, RSIConfig } from './config';
 
-const macdConfig = {
-	fastPeriod: 12,
-	slowPeriod: 26,
-	signalPeriod: 9,
-	SimpleMAOscillator: false,
-	SimpleMASignal: false,
+export const MACD = (data: OHLCV[], config: MACDConfig): Indicator => {
+	return new Indicators.MACD({
+		...config,
+		values: data.map(x => x[3]),
+	});
 };
 
-export const MACD = (data: OHLCV[]) =>
-	new Indicators.MACD({
-		...macdConfig,
+export const RSI = (data: OHLCV[], config: RSIConfig): Indicator => {
+	return new Indicators.RSI({
+		...config,
 		values: data.map(x => x[3]),
-	}).result;
-
-const rsiConfig = {
-	period: 14,
+	});
 };
-
-export const RSI = (data: OHLCV[]) =>
-	new Indicators.RSI({
-		...rsiConfig,
-		values: data.map(x => x[3]),
-	}).result;
