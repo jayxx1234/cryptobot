@@ -27,7 +27,7 @@ class MACD extends ChartBase {
 				data: macdResult.map((x, i) => {
 					return {
 						x: new Date(propsData[i][0]),
-						y: x.histogram,
+						y: x.histogram || 0,
 					};
 				}),
 			},
@@ -36,7 +36,7 @@ class MACD extends ChartBase {
 				data: macdResult.map((x, i) => {
 					return {
 						x: new Date(propsData[i][0]),
-						y: x.MACD,
+						y: x.MACD || 0,
 					};
 				}),
 			},
@@ -45,7 +45,7 @@ class MACD extends ChartBase {
 				data: macdResult.map((x, i) => {
 					return {
 						x: new Date(propsData[i][0]),
-						y: x.signal,
+						y: x.signal || 0,
 					};
 				}),
 			},
