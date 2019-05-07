@@ -37,9 +37,9 @@ export interface ProcessedData {
 	size: number;
 	timePortion: number;
 	trainX: number[][];
-	trainY: number[][];
-	dataMin: number;
-	dataMax: number;
+	trainY: number[];
+	dataMin: number[];
+	dataMax: number[];
 	originalData: number[][];
 	indicatorsMin: number[];
 	indicatorsMax: number[];
@@ -55,9 +55,9 @@ export const processData = function(
 			trainY = [],
 			size = data.length;
 
-		let closePrices = data.map(x => x[3]);
-		let scaledClose = minMaxScaler(closePrices, getMin(closePrices), getMax(closePrices));
-		let scaledCloseFeatures = scaledClose.data;
+		let [timestamp, ...prices] = data;
+		let scaledPrices = prices.map(p => minMaxScaler(p, getMin(p), getMax(p)));
+		let scaledDataFeatures = scaledPrices.map(c => c.data);
 
 		// Scale the values
 		let scaledIndicators = [];
@@ -69,12 +69,17 @@ export const processData = function(
 
 		let features: number[][] = [];
 		for (let i = 0; i < size; i++) {
+			let dataFeatures = [];
+			for (let j = 0; j < scaledDataFeatures.length; j++) {
+				dataFeatures.push(scaledDataFeatures[j][i] || 0);
+			}
+
 			let indicatorFeatures = [];
-			for (let j = 0; j < indicators.length; j++) {
+			for (let j = 0; j < scaledIndicatorFeatures.length; j++) {
 				indicatorFeatures.push(scaledIndicatorFeatures[j][i] || 0);
 			}
 
-			features.push([scaledCloseFeatures[i], ...indicatorFeatures]);
+			features.push([...dataFeatures, ...indicatorFeatures]);
 		}
 
 		try {
@@ -84,7 +89,7 @@ export const processData = function(
 					trainX.push(features[j]);
 				}
 
-				trainY.push(features[i]);
+				trainY.push(features[i][2]);
 			}
 		} catch (ex) {
 			reject(ex);
@@ -96,8 +101,8 @@ export const processData = function(
 			timePortion: timePortion,
 			trainX: trainX,
 			trainY: trainY,
-			dataMin: scaledClose.min,
-			dataMax: scaledClose.max,
+			dataMin: scaledPrices.map(p => p.min),
+			dataMax: scaledPrices.map(p => p.max),
 			indicatorsMin: scaledIndicators.map(x => x.min),
 			indicatorsMax: scaledIndicators.map(x => x.max),
 			originalData: features,

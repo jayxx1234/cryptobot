@@ -13,6 +13,8 @@ import {
 } from './helpers';
 import { MACDOutput } from 'technicalindicators/declarations/moving_averages/MACD';
 
+(window as any).stopCNN = false;
+
 const epochs = 1;
 
 let predictionResults: {
@@ -97,7 +99,7 @@ class CNN {
 			var predictedX = cnn.model.predict(tensorData.tensorTrainX) as tf.Tensor<tf.Rank>;
 
 			// Scale the next day features
-			let nextDayPredictionScaled = nextDayPrediction.map(x => minMaxScaler(x, min, max).data);
+			let nextDayPredictionScaled = nextDayPrediction.map((x, i) => minMaxScaler(x, min[i], max[i]).data);
 			// Transform to tensor data
 			let tensorNextDayPrediction = tf
 				.tensor2d(nextDayPredictionScaled)
@@ -108,12 +110,12 @@ class CNN {
 			// Get the predicted data for the train set
 			let predValue = await predictedValue.data();
 			// Revert the scaled features, so we get the real values
-			let inversePredictedValue = minMaxInverseScaler(Array.from(predValue), min, max);
+			let inversePredictedValue = minMaxInverseScaler(Array.from(predValue), min[2], max[2]);
 
 			// Get the next day predicted value
 			let pred = await predictedX.data();
 			// Revert the scaled feature
-			var predictedXInverse = minMaxInverseScaler(Array.from(pred), min, max);
+			var predictedXInverse = minMaxInverseScaler(Array.from(pred), min[2], max[2]);
 
 			// Add the next day predicted stock price so it's shown on the graph
 			predictedXInverse.data[predictedXInverse.data.length] = inversePredictedValue.data[0];
@@ -139,7 +141,7 @@ class CNN {
 			});
 
 			i++;
-			if (i >= 2000) break;
+			if ((window as any).stopCNN) break;
 		}
 		console.clear();
 		console.log(configs);
