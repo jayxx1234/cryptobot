@@ -83,7 +83,7 @@ class CNN {
 				tensorTrainX: tf
 					.tensor2d(result.trainX)
 					.reshape([result.size, result.timePortion, this.indicators.length + 1, 1]),
-				tensorTrainY: tf.tensor2d(result.trainY),
+				tensorTrainY: tf.tensor1d(result.trainY),
 			};
 			// Rember the min and max in order to revert (min-max scaler) the scaled data later
 			let max = result.dataMax;

@@ -55,7 +55,7 @@ export const processData = function(
 			trainY = [],
 			size = data.length;
 
-		let [timestamp, ...prices] = data;
+		let prices = data.map(([timestamp, ...p]) => p);
 		let scaledPrices = prices.map(p => minMaxScaler(p, getMin(p), getMax(p)));
 		let scaledDataFeatures = scaledPrices.map(c => c.data);
 
