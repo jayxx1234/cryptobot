@@ -1,12 +1,10 @@
 import * as tf from '@tensorflow/tfjs';
-import moment from 'moment';
 import { OHLCV } from 'ccxt';
-import { Config, cnnOptions, macdConfigs, rsiConfigs } from './config';
+import { Config, cnnOptions } from './config';
 import * as Indicators from './indicators';
 import {
 	minMaxScaler,
 	minMaxInverseScaler,
-	addDays,
 	processData,
 	getDataForNextDayPrediction,
 	ProcessedData,
@@ -36,18 +34,11 @@ class CNN {
 	public async run(data: OHLCV[]) {
 		let self = this;
 
-		this.indicators = [];
-
-		for (let conf of macdConfigs) {
-			let macdResult = Indicators.MACD(data, conf).result as MACDOutput[];
-			this.indicators.push(macdResult.map(x => x.MACD));
-			this.indicators.push(macdResult.map(x => x.histogram));
-			this.indicators.push(macdResult.map(x => x.signal));
-		}
-		for (let conf of rsiConfigs) {
-			let rsiResult = Indicators.RSI(data, conf).result as number[];
-			this.indicators.push(rsiResult);
-		}
+		this.indicators = [
+			...Indicators.allADL(data),
+			...Indicators.allMACD(data),
+			...Indicators.allRSI(data),
+		];
 
 		console.clear();
 		console.log('Beginning Stock Prediction ...');
