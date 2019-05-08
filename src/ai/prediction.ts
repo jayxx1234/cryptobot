@@ -28,6 +28,8 @@ let configs: Config[] = [];
 let processedData = {};
 let nextDayPredictions = {};
 
+let dataColumnCount = 5;
+
 class CNN {
 	indicators: any[] = [];
 
@@ -49,11 +51,6 @@ class CNN {
 
 		console.clear();
 		console.log('Beginning Stock Prediction ...');
-
-		// Get the datetime labels use in graph
-		let labels = data.map(val => val[0]);
-
-		console.log('Building models');
 
 		let i = 0;
 		for (let configArray of cnnOptions) {
@@ -82,7 +79,7 @@ class CNN {
 			let tensorData = {
 				tensorTrainX: tf
 					.tensor2d(result.trainX)
-					.reshape([result.size, result.timePortion, this.indicators.length + 1, 1]),
+					.reshape([result.size, result.timePortion, this.indicators.length + dataColumnCount, 1]),
 				tensorTrainY: tf.tensor1d(result.trainY),
 			};
 			// Rember the min and max in order to revert (min-max scaler) the scaled data later
@@ -103,7 +100,7 @@ class CNN {
 			// Transform to tensor data
 			let tensorNextDayPrediction = tf
 				.tensor2d(nextDayPredictionScaled)
-				.reshape([1, result.timePortion, this.indicators.length + 1, 1]);
+				.reshape([1, result.timePortion, this.indicators.length + dataColumnCount, 1]);
 			// Predict the next day stock price
 			let predictedValue = cnn.model.predict(tensorNextDayPrediction) as tf.Tensor<tf.Rank>;
 
@@ -129,7 +126,7 @@ class CNN {
 
 			// Print the predicted stock price value for the next day
 			let difference = inversePredictedValue.data[0];
-			let price = data[data.length - 1][4] * (1 + difference);
+			let price = data[data.length - 1][3] * (1 + difference);
 			const loss = cnn.history.history.loss[cnn.history.epoch.length - 1] as number;
 			console.log(`Model ${i} Loss: ${loss.toFixed(20)}, Price: ${price.toFixed(20)}`);
 
@@ -159,7 +156,7 @@ class CNN {
 			// Define input layer
 			model.add(
 				tf.layers.inputLayer({
-					inputShape: [config.timePortion, self.indicators.length + 1, 1],
+					inputShape: [config.timePortion, self.indicators.length + dataColumnCount, 1],
 				})
 			);
 
@@ -209,7 +206,7 @@ class CNN {
 			// Add Dense layer
 			model.add(
 				tf.layers.dense({
-					units: self.indicators.length + 1,
+					units: 1,
 					activation: config.denseActivation,
 					kernelInitializer: config.denseKernelInitializer,
 				})

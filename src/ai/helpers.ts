@@ -70,8 +70,8 @@ export const processData = function(
 		let features: number[][] = [];
 		for (let i = 0; i < size; i++) {
 			let dataFeatures = [];
-			for (let j = 0; j < scaledDataFeatures.length; j++) {
-				dataFeatures.push(scaledDataFeatures[j][i] || 0);
+			for (let j = 0; j < scaledDataFeatures[0].length; j++) {
+				dataFeatures.push(scaledDataFeatures[i][j] || 0);
 			}
 
 			let indicatorFeatures = [];
