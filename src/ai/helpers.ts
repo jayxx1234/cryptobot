@@ -17,6 +17,12 @@ export const minMaxScaler = function(data: number[], min: number, max: number) {
 	};
 };
 
+const scaleData = function(data: number[]) {
+	const min = getMin(data);
+	const max = getMax(data);
+	return minMaxScaler(data, min, max);
+};
+
 /*
 	Revert min-max normalization and get the real values
 */
@@ -55,9 +61,18 @@ export const processData = function(
 			trainY = [],
 			size = data.length;
 
-		let prices = data.map(([timestamp, ...p]) => p);
-		let scaledPrices = prices.map(p => minMaxScaler(p, getMin(p), getMax(p)));
-		let scaledDataFeatures = scaledPrices.map(c => c.data);
+		let scaledOpen = scaleData(data.map(d => d[1]));
+		let scaledHigh = scaleData(data.map(d => d[2]));
+		let scaledLow = scaleData(data.map(d => d[3]));
+		let scaledClose = scaleData(data.map(d => d[4]));
+		let scaledVolume = scaleData(data.map(d => d[5]));
+		let scaledDataFeatures = data.map((d, i) => [
+			scaledOpen.data[i],
+			scaledHigh.data[i],
+			scaledLow.data[i],
+			scaledClose.data[i],
+			scaledVolume.data[i],
+		]);
 
 		// Scale the values
 		let scaledIndicators = [];
@@ -89,7 +104,7 @@ export const processData = function(
 					trainX.push(features[j]);
 				}
 
-				trainY.push(features[i][2]);
+				trainY.push(features[i][3]);
 			}
 		} catch (ex) {
 			reject(ex);
@@ -101,8 +116,8 @@ export const processData = function(
 			timePortion: timePortion,
 			trainX: trainX,
 			trainY: trainY,
-			dataMin: scaledPrices.map(p => p.min),
-			dataMax: scaledPrices.map(p => p.max),
+			dataMin: [scaledOpen.min, scaledHigh.min, scaledLow.min, scaledClose.min, scaledVolume.min],
+			dataMax: [scaledOpen.max, scaledHigh.max, scaledLow.max, scaledClose.max, scaledVolume.max],
 			indicatorsMin: scaledIndicators.map(x => x.min),
 			indicatorsMax: scaledIndicators.map(x => x.max),
 			originalData: features,

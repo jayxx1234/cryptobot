@@ -2,13 +2,7 @@ import * as tf from '@tensorflow/tfjs';
 import { OHLCV } from 'ccxt';
 import { Config, cnnOptions } from './config';
 import * as Indicators from './indicators';
-import {
-	minMaxScaler,
-	minMaxInverseScaler,
-	processData,
-	getDataForNextDayPrediction,
-	ProcessedData,
-} from './helpers';
+import { minMaxScaler, minMaxInverseScaler, processData, getDataForNextDayPrediction, ProcessedData } from './helpers';
 import { MACDOutput } from 'technicalindicators/declarations/moving_averages/MACD';
 
 (window as any).stopCNN = false;
@@ -34,11 +28,7 @@ class CNN {
 	public async run(data: OHLCV[]) {
 		let self = this;
 
-		this.indicators = [
-			...Indicators.allADL(data),
-			...Indicators.allMACD(data),
-			...Indicators.allRSI(data),
-		];
+		this.indicators = [...Indicators.allADL(data), ...Indicators.allMACD(data), ...Indicators.allRSI(data)];
 
 		console.clear();
 		console.log('Beginning Stock Prediction ...');
@@ -87,6 +77,7 @@ class CNN {
 			var predictedX = cnn.model.predict(tensorData.tensorTrainX) as tf.Tensor<tf.Rank>;
 
 			// Scale the next day features
+			// TODO: nextDayPrediction contains '0' values which become NaN when scaled
 			let nextDayPredictionScaled = nextDayPrediction.map((x, i) => minMaxScaler(x, min[i], max[i]).data);
 			// Transform to tensor data
 			let tensorNextDayPrediction = tf
