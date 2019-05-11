@@ -3,7 +3,6 @@ import { OHLCV } from 'ccxt';
 import { Config, cnnOptions } from './config';
 import * as Indicators from './indicators';
 import { minMaxScaler, minMaxInverseScaler, processData, getDataForNextDayPrediction, ProcessedData } from './helpers';
-import { MACDOutput } from 'technicalindicators/declarations/moving_averages/MACD';
 
 (window as any).stopCNN = false;
 
@@ -28,7 +27,7 @@ class CNN {
 	public async run(data: OHLCV[]) {
 		let self = this;
 
-		this.indicators = [...Indicators.allADL(data), ...Indicators.allMACD(data), ...Indicators.allRSI(data)];
+		this.indicators = [...Indicators.allMACD(data), ...Indicators.allRSI(data)];
 
 		console.clear();
 		console.log('Beginning Stock Prediction ...');
@@ -64,8 +63,8 @@ class CNN {
 				tensorTrainY: tf.tensor1d(result.trainY),
 			};
 			// Rember the min and max in order to revert (min-max scaler) the scaled data later
-			let max = result.dataMax;
-			let min = result.dataMin;
+			let allMins = [...result.dataMin, ...result.indicatorsMin];
+			let allMaxs = [...result.dataMax, ...result.indicatorsMax];
 
 			// Train the model using the tensor data
 			// Repeat multiple epochs so the error rate is smaller (better fit for the data)
@@ -77,8 +76,28 @@ class CNN {
 			var predictedX = cnn.model.predict(tensorData.tensorTrainX) as tf.Tensor<tf.Rank>;
 
 			// Scale the next day features
-			// TODO: nextDayPrediction contains '0' values which become NaN when scaled
-			let nextDayPredictionScaled = nextDayPrediction.map((x, i) => minMaxScaler(x, min[i], max[i]).data);
+			/*
+				nextDayPrediction = [
+					[open1, high1, low1, close1, volume1, ...indicators1],
+					[open2, high2, low2, close2, volume2, ...indicators2],
+					...
+				];
+				nextDayPredictionScaled = [
+					[open1scaled, high1scaled, low1scaled, close1scaled, volume1scaled, ...],
+					...
+				];
+			*/
+
+			console.log(allMins);
+			console.log(allMaxs);
+			console.log(nextDayPrediction);
+
+			let nextDayPredictionScaled = nextDayPrediction[0].map(
+				(_, i) => minMaxScaler(nextDayPrediction.map(x => x[i]), allMins[i], allMaxs[i]).data
+			);
+
+			console.log(nextDayPredictionScaled);
+
 			// Transform to tensor data
 			let tensorNextDayPrediction = tf
 				.tensor2d(nextDayPredictionScaled)
@@ -89,12 +108,12 @@ class CNN {
 			// Get the predicted data for the train set
 			let predValue = await predictedValue.data();
 			// Revert the scaled features, so we get the real values
-			let inversePredictedValue = minMaxInverseScaler(Array.from(predValue), min[2], max[2]);
+			let inversePredictedValue = minMaxInverseScaler(Array.from(predValue), allMins[2], allMaxs[2]);
 
 			// Get the next day predicted value
 			let pred = await predictedX.data();
 			// Revert the scaled feature
-			var predictedXInverse = minMaxInverseScaler(Array.from(pred), min[2], max[2]);
+			var predictedXInverse = minMaxInverseScaler(Array.from(pred), allMins[2], allMaxs[2]);
 
 			// Add the next day predicted stock price so it's shown on the graph
 			predictedXInverse.data[predictedXInverse.data.length] = inversePredictedValue.data[0];
