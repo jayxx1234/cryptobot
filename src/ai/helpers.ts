@@ -41,6 +41,7 @@ export const minMaxInverseScaler = function(data: number[], min: number, max: nu
 
 export interface ProcessedData {
 	size: number;
+	trainSize: number;
 	timePortion: number;
 	trainX: number[][];
 	trainY: number[];
@@ -54,7 +55,8 @@ export interface ProcessedData {
 export const processData = function(
 	data: OHLCV[],
 	indicators: number[][],
-	timePortion: number
+	timePortion: number,
+	predictOnlyCount: number
 ): Promise<ProcessedData> {
 	return new Promise(function(resolve: any, reject: any) {
 		let trainX = [],
@@ -99,7 +101,7 @@ export const processData = function(
 
 		try {
 			// Create the train sets
-			for (let i = timePortion; i < size; i++) {
+			for (let i = timePortion; i < size - predictOnlyCount; i++) {
 				for (let j = i - timePortion; j < i; j++) {
 					trainX.push(features[j]);
 				}
@@ -113,6 +115,7 @@ export const processData = function(
 
 		let ret: ProcessedData = {
 			size: size - timePortion,
+			trainSize: size - timePortion - predictOnlyCount,
 			timePortion: timePortion,
 			trainX: trainX,
 			trainY: trainY,
@@ -131,15 +134,23 @@ export const processData = function(
 	This will take the last timePortion days from the data
 	and they will be used to predict the next day stock price
 */
-export const getDataForNextDayPrediction = function(data: number[][], timePortion: number): number[][] {
-	let size = data.length;
-	let features = [];
+export const getDataForNextDayPrediction = function(data: number[][], timePortion: number): number[] {
+	return [data.length - timePortion - 1, data.length - 1];
+};
 
-	for (let i = size - timePortion; i < size; i++) {
-		features.push(data[i]);
+export const getDataForAllPredictions = function(
+	data: number[][],
+	timePortion: number,
+	predictOnlyCount: number
+): { start: number; end: number }[] {
+	let size = data.length - 1;
+	let predictions = [];
+
+	for (let start = size - predictOnlyCount - timePortion; start < size - timePortion; start++) {
+		predictions.push({ start, end: start + timePortion });
 	}
 
-	return features;
+	return predictions;
 };
 
 /*

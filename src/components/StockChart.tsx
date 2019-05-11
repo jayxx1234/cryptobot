@@ -9,7 +9,11 @@ import MACD from './charts/MACD';
 import RSI from './charts/RSI';
 import CNN from '../ai/prediction';
 
-class StockChart extends React.Component<StockChartProps, {}> {
+class StockChart extends React.Component<StockChartProps, { showCharts: boolean }> {
+	state = {
+		showCharts: false,
+	};
+
 	constructor(props: StockChartProps) {
 		super(props);
 
@@ -22,9 +26,10 @@ class StockChart extends React.Component<StockChartProps, {}> {
 
 	loadCnn(data: ccxt.OHLCV[] | null) {
 		if (data) {
-			setTimeout(() => {
+			setTimeout(async () => {
 				let cnn = new CNN();
-				cnn.run(data);
+				await cnn.run(data);
+				this.setState({ showCharts: true });
 			}, 0);
 		}
 	}
@@ -45,14 +50,17 @@ class StockChart extends React.Component<StockChartProps, {}> {
 				</Typography>
 			);
 		}
-
-		return (
-			<div id="charts" {...otherProps}>
-				<Candles data={data} min={min} max={max} />
-				<MACD data={data} min={min} max={max} />
-				<RSI data={data} min={min} max={max} />
-			</div>
-		);
+		if (this.state.showCharts) {
+			return (
+				<div id="charts" {...otherProps}>
+					<Candles data={data} min={min} max={max} />
+					<MACD data={data} min={min} max={max} />
+					<RSI data={data} min={min} max={max} />
+				</div>
+			);
+		} else {
+			return <div id="charts" {...otherProps} />;
+		}
 	}
 }
 
