@@ -16,6 +16,9 @@ let dataColumnCount = 5;
 
 let predictOnlyCount = 100;
 
+// NOTE: computer will shutdown instantly if too much data is passed to the neural network. Broken with 6 MACD configs (3 data points per config per timestamp) and 1 RSI config
+// Works with only 1 MACD and 1 RSI
+
 class CNN {
 	indicators: any[] = [];
 
@@ -120,8 +123,6 @@ class CNN {
 					}`
 				);
 			});
-
-			// break;
 
 			i++;
 			if ((window as any).stopCNN) break;
