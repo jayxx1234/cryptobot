@@ -75,7 +75,7 @@ class CNN {
 			// the last predictionSet will have one more data point after it, which is the actual result for the last prediction
 			let predictionSets = predictionDataSets[result.timePortion] as { start: number; end: number }[];
 
-			predictionSets.forEach(async predictionSet => {
+			predictionSets.forEach(async (predictionSet, priceIndex) => {
 				let actualNextDay = data[predictionSet.end + 1];
 
 				// Scale the next day features
@@ -114,10 +114,14 @@ class CNN {
 				// Print the predicted stock price value for the next day
 				let difference = inversePredictedValue.data[0];
 				let price = data[predictionSet.end][4] * (1 + difference);
-				console.log(`Model ${i} Predicted: ${price.toFixed(20)}, Actual: ${actualNextDay[4]}`);
+				console.log(
+					`Model ${i}, PriceIndex: ${priceIndex}, Predicted: ${price.toFixed(20)}, Actual: ${
+						actualNextDay[4]
+					}`
+				);
 			});
 
-			break;
+			// break;
 
 			i++;
 			if ((window as any).stopCNN) break;

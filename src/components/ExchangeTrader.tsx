@@ -64,7 +64,7 @@ class ExchangeTrader extends React.Component<{ exchange: string | null }, {}> {
 			await this.sleep(this.trader.rateLimit);
 			let now: Date = new Date();
 			let date: Date = new Date();
-			date.setMonth(date.getMonth() - 60);
+			date.setMonth(date.getMonth() - 6);
 			let since: number = date.valueOf() / 1000;
 			this.trader
 				.fetchOHLCV(market, '1d', undefined, undefined, {
