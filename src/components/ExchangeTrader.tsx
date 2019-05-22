@@ -3,7 +3,7 @@ import ccxt from 'ccxt';
 import Typography from '@material-ui/core/Typography';
 import Paper from '@material-ui/core/Paper';
 import Select from 'react-select';
-import { Button } from '@material-ui/core';
+import { Button, Input } from '@material-ui/core';
 import StockChart from './StockChart';
 
 class ExchangeTrader extends React.Component<{ exchange: string | null }, {}> {
@@ -15,6 +15,7 @@ class ExchangeTrader extends React.Component<{ exchange: string | null }, {}> {
 		markets: ccxt.Market[];
 		market: ccxt.Market | null;
 		trades: ccxt.OHLCV[] | null;
+		months: number | null;
 		min: Date;
 		max: Date;
 	} = {
@@ -22,6 +23,7 @@ class ExchangeTrader extends React.Component<{ exchange: string | null }, {}> {
 		markets: [],
 		market: null,
 		trades: null,
+		months: null,
 		min: new Date(),
 		max: new Date(),
 	};
@@ -35,6 +37,7 @@ class ExchangeTrader extends React.Component<{ exchange: string | null }, {}> {
 
 		this.onExchangeChange = this.onExchangeChange.bind(this);
 		this.onMarketChange = this.onMarketChange.bind(this);
+		this.onMonthsChange = this.onMonthsChange.bind(this);
 		this.resetScreen = this.resetScreen.bind(this);
 	}
 
@@ -64,7 +67,7 @@ class ExchangeTrader extends React.Component<{ exchange: string | null }, {}> {
 			await this.sleep(this.trader.rateLimit);
 			let now: Date = new Date();
 			let date: Date = new Date();
-			date.setMonth(date.getMonth() - 6);
+			date.setMonth(date.getMonth() - this.state.months!);
 			let since: number = date.valueOf() / 1000;
 			this.trader
 				.fetchOHLCV(market, '1d', undefined, undefined, {
@@ -82,11 +85,18 @@ class ExchangeTrader extends React.Component<{ exchange: string | null }, {}> {
 		}
 	}
 
+	onMonthsChange() {
+		this.setState({
+			months: parseInt((document.getElementById("months-input") as HTMLInputElement).value),
+		});
+	}
+
 	resetScreen() {
 		this.setState({
 			exchange: null,
 			markets: [],
 			market: null,
+			months: null,
 		});
 	}
 
@@ -111,6 +121,22 @@ class ExchangeTrader extends React.Component<{ exchange: string | null }, {}> {
 						isClearable={true}
 						onChange={this.onExchangeChange}
 					/>
+				</div>
+			);
+		} else if (this.state.months === null) {
+			return (
+				<div>
+					<Typography variant="body2" component="div">
+						Please enter a (whole) number of months
+					</Typography>
+					<Input
+						key="months"
+						id="months-input"
+						type="text"
+					/>
+					<Button onClick={this.onMonthsChange}>
+						Ok
+					</Button>
 				</div>
 			);
 		} else if (this.state.market === null) {
