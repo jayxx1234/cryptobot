@@ -26,13 +26,26 @@ class ChartBase extends React.Component<CandleStickChartProps, ChartState> {
 	constructor(props: CandleStickChartProps) {
 		super(props);
 
-		this.state.series = this.calculateChartData(props);
+		let allData = this.calculateChartData(props);
+		allData.map(({ name, data }) => {
+			return {
+				name,
+				data: data.slice(data.length - props.daysToShow!),
+			};
+		});
+		this.state.series = allData.map(({ name, data }) => {
+			return {
+				name,
+				data: data.slice(data.length - props.daysToShow!),
+			};
+		});
 		this.chartOptions.xaxis.min = props.min;
 		this.chartOptions.xaxis.max = props.max;
 	}
 
 	componentWillReceiveProps(newProps: CandleStickChartProps) {
-		let series = this.calculateChartData(newProps);
+		let allData = this.calculateChartData(newProps);
+		let series = allData.slice(allData.length - newProps.daysToShow!);
 
 		this.setState({
 			series,

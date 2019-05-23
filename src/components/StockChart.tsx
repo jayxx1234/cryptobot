@@ -51,12 +51,11 @@ class StockChart extends React.Component<StockChartProps, { showCharts: boolean 
 			);
 		}
 		if (this.state.showCharts) {
-			const dataToShow = data.slice(data.length - this.props.daysToShow!);
 			return (
 				<div id="charts" {...otherProps}>
-					<Candles data={dataToShow} min={min} max={max} />
-					<MACD data={dataToShow} min={min} max={max} />
-					<RSI data={dataToShow} min={min} max={max} />
+					<Candles data={data} min={min} max={max} daysToShow={this.props.daysToShow} />
+					<MACD data={data} min={min} max={max} daysToShow={this.props.daysToShow} />
+					<RSI data={data} min={min} max={max} daysToShow={this.props.daysToShow} />
 				</div>
 			);
 		} else {
