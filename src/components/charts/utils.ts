@@ -5,4 +5,5 @@ export default interface StockChartProps extends DivProps {
 	data: ccxt.OHLCV[] | null;
 	min: Date;
 	max: Date;
+	daysToShow?: number;
 }

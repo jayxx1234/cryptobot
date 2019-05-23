@@ -6,6 +6,8 @@ import Select from 'react-select';
 import { Button, Input } from '@material-ui/core';
 import StockChart from './StockChart';
 
+const MINIMUM_MONTHS = 5;
+
 class ExchangeTrader extends React.Component<{ exchange: string | null }, {}> {
 	public title = 'Cryptobot';
 	public sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -15,7 +17,7 @@ class ExchangeTrader extends React.Component<{ exchange: string | null }, {}> {
 		markets: ccxt.Market[];
 		market: ccxt.Market | null;
 		trades: ccxt.OHLCV[] | null;
-		months: number | null;
+		days: number | null;
 		min: Date;
 		max: Date;
 	} = {
@@ -23,7 +25,7 @@ class ExchangeTrader extends React.Component<{ exchange: string | null }, {}> {
 		markets: [],
 		market: null,
 		trades: null,
-		months: null,
+		days: null,
 		min: new Date(),
 		max: new Date(),
 	};
@@ -37,7 +39,7 @@ class ExchangeTrader extends React.Component<{ exchange: string | null }, {}> {
 
 		this.onExchangeChange = this.onExchangeChange.bind(this);
 		this.onMarketChange = this.onMarketChange.bind(this);
-		this.onMonthsChange = this.onMonthsChange.bind(this);
+		this.onDaysChange = this.onDaysChange.bind(this);
 		this.resetScreen = this.resetScreen.bind(this);
 	}
 
@@ -67,7 +69,7 @@ class ExchangeTrader extends React.Component<{ exchange: string | null }, {}> {
 			await this.sleep(this.trader.rateLimit);
 			let now: Date = new Date();
 			let date: Date = new Date();
-			date.setMonth(date.getMonth() - this.state.months!);
+			date.setMonth(date.getMonth() - Math.max(Math.floor(this.state.days! / 30), MINIMUM_MONTHS));
 			let since: number = date.valueOf() / 1000;
 			this.trader
 				.fetchOHLCV(market, '1d', undefined, undefined, {
@@ -85,9 +87,9 @@ class ExchangeTrader extends React.Component<{ exchange: string | null }, {}> {
 		}
 	}
 
-	onMonthsChange() {
+	onDaysChange() {
 		this.setState({
-			months: parseInt((document.getElementById("months-input") as HTMLInputElement).value),
+			days: parseInt((document.getElementById("days-input") as HTMLInputElement).value),
 		});
 	}
 
@@ -96,7 +98,7 @@ class ExchangeTrader extends React.Component<{ exchange: string | null }, {}> {
 			exchange: null,
 			markets: [],
 			market: null,
-			months: null,
+			days: null,
 		});
 	}
 
@@ -123,18 +125,18 @@ class ExchangeTrader extends React.Component<{ exchange: string | null }, {}> {
 					/>
 				</div>
 			);
-		} else if (this.state.months === null) {
+		} else if (this.state.days === null) {
 			return (
 				<div>
 					<Typography variant="body2" component="div">
-						Please enter a (whole) number of months
+						Please enter a number of days
 					</Typography>
 					<Input
-						key="months"
-						id="months-input"
+						key="days"
+						id="days-input"
 						type="text"
 					/>
-					<Button onClick={this.onMonthsChange}>
+					<Button onClick={this.onDaysChange}>
 						Ok
 					</Button>
 				</div>
@@ -160,7 +162,7 @@ class ExchangeTrader extends React.Component<{ exchange: string | null }, {}> {
 		} else {
 			return (
 				<div>
-					<StockChart className="tile" data={this.state.trades} min={this.state.min} max={this.state.max} />
+					<StockChart className="tile" data={this.state.trades} min={this.state.min} max={this.state.max} daysToShow={this.state.days!} />
 				</div>
 			);
 		}
