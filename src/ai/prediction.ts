@@ -1,6 +1,6 @@
 import * as tf from '@tensorflow/tfjs';
 import { OHLCV } from 'ccxt';
-import { Config, cnnOptions } from './config';
+import { Config, cnnOptions, exchangeConfig } from './config';
 import * as Indicators from './indicators';
 import { minMaxScaler, minMaxInverseScaler, processData, ProcessedData, getDataForAllPredictions } from './helpers';
 
@@ -11,13 +11,19 @@ const epochs = 1;
 let configs: Config[] = [];
 let processedData = {};
 let predictionDataSets = {};
+let modelProfits: {
+	modelIndex: number;
+	actionIndex: number;
+	profit: number;
+}[] = [];
 
 let dataColumnCount = 5;
 
 let predictOnlyCount = 100;
 
-// NOTE: computer will shutdown instantly if too much data is passed to the neural network. Broken with 6 MACD configs (3 data points per config per timestamp) and 1 RSI config
-// Works with only 1 MACD and 1 RSI
+// NOTE: without this, Tensorflow will run on the GPU (which is around 100x faster), but memory management is hard, and the computer will
+// shutdown instantly if the GPU runs out of memory.
+// tf.setBackend('cpu');
 
 class CNN {
 	indicators: any[] = [];
@@ -78,7 +84,8 @@ class CNN {
 			// the last predictionSet will have one more data point after it, which is the actual result for the last prediction
 			let predictionSets = predictionDataSets[result.timePortion] as { start: number; end: number }[];
 
-			predictionSets.forEach(async (predictionSet, priceIndex) => {
+			let priceIndex = 0;
+			for (let predictionSet of predictionSets) {
 				let actualNextDay = data[predictionSet.end + 1];
 
 				// Scale the next day features
@@ -117,12 +124,28 @@ class CNN {
 				// Print the predicted stock price value for the next day
 				let difference = inversePredictedValue.data[0];
 				let price = data[predictionSet.end][4] * (1 + difference);
+
+				let profit = this.takeAction({
+					previous: data[predictionSet.end][4],
+					prediction: price,
+					actual: actualNextDay[4],
+				});
+
 				console.log(
 					`Model ${i}, PriceIndex: ${priceIndex}, Predicted: ${price.toFixed(20)}, Actual: ${
 						actualNextDay[4]
-					}`
+					}, Profit: ${profit}`
 				);
-			});
+
+				predictedValue.dispose();
+				tensorNextDayPrediction.dispose();
+				priceIndex++;
+			}
+
+			predictedX.dispose();
+			tensorData.tensorTrainX.dispose();
+			tensorData.tensorTrainY.dispose();
+			cnn.model.dispose();
 
 			i++;
 			if ((window as any).stopCNN) break;
@@ -222,6 +245,23 @@ class CNN {
 				reject(ex);
 			}
 		});
+	}
+
+	takeAction(data: { previous: number; prediction: number; actual: number }): number {
+		// account for exchange fees on both transactions
+		let fees = -exchangeConfig.fee.maker * data.previous + -exchangeConfig.fee.taker * data.actual;
+		let actionThreshold = -2 * fees;
+
+		if (data.prediction - data.previous > actionThreshold) {
+			// long
+			return fees + data.actual - data.previous;
+		} else if (data.previous - data.prediction > actionThreshold) {
+			// short
+			return fees + data.previous - data.actual;
+		} else {
+			// no transactions
+			return 0;
+		}
 	}
 }
 

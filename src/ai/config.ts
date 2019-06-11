@@ -160,6 +160,13 @@ export const cnnOptions = generateCartesian<Config, ConfigOptions>(configOptions
 export const macdConfigs = generateCartesian<MACDConfig, MACDConfigOptions>(macdOptions);
 export const rsiConfigs = generateCartesian<RSIConfig, RSIConfigOptions>(rsiOptions);
 
+export const exchangeConfig = {
+	fee: {
+		maker: 0.002,
+		taker: 0.002,
+	},
+};
+
 /*
 Optimal config so far appears to be: {
 	denseActivation: "elu",
