@@ -57,7 +57,7 @@ class ChartBase extends React.Component<CandleStickChartProps, ChartState> {
 	}
 
 	render() {
-		const { data, ...otherProps } = this.props;
+		const { data, daysToShow, ...otherProps } = this.props;
 		let { series } = this.state;
 
 		if (!data || !data.length || !series || !series.length) {

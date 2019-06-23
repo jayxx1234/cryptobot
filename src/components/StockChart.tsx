@@ -1,7 +1,6 @@
 import * as React from 'react';
 import Typography from '@material-ui/core/Typography';
 import ccxt from 'ccxt';
-import '@tensorflow/tfjs';
 
 import StockChartProps from './charts/utils';
 import Candles from './charts/Candles';
@@ -29,13 +28,15 @@ class StockChart extends React.Component<StockChartProps, { showCharts: boolean 
 			setTimeout(async () => {
 				let cnn = new CNN();
 				await cnn.run(data);
-				this.setState({ showCharts: true });
+				this.setState({
+					showCharts: true,
+				});
 			}, 0);
 		}
 	}
 
 	render() {
-		const { data, min, max, ...otherProps } = this.props;
+		const { data, min, max, daysToShow, ...otherProps } = this.props;
 
 		if (!data) {
 			return (

@@ -17,7 +17,10 @@ export const minMaxScaler = function(data: number[], min: number, max: number) {
 	};
 };
 
-const scaleData = function(data: number[]) {
+const scaleDataFromPrevious = function(data: number[]) {
+	return data.map((value, index) => (index == 0 ? 1 : value / data[index - 1]));
+};
+const scaleDataFromMinMax = function(data: number[]) {
 	const min = getMin(data);
 	const max = getMax(data);
 	return minMaxScaler(data, min, max);
@@ -45,15 +48,11 @@ export interface ProcessedData {
 	timePortion: number;
 	trainX: number[][];
 	trainY: number[];
-	dataMin: number[];
-	dataMax: number[];
 	originalData: number[][];
-	indicatorsMin: number[];
-	indicatorsMax: number[];
 }
 
 export const processData = function(
-	data: OHLCV[],
+	data: number[][],
 	indicators: number[][],
 	timePortion: number,
 	predictOnlyCount: number
@@ -63,50 +62,47 @@ export const processData = function(
 			trainY = [],
 			size = data.length;
 
-		let scaledOpen = scaleData(data.map(d => d[1]));
-		let scaledHigh = scaleData(data.map(d => d[2]));
-		let scaledLow = scaleData(data.map(d => d[3]));
-		let scaledClose = scaleData(data.map(d => d[4]));
-		let scaledVolume = scaleData(data.map(d => d[5]));
-		let scaledDataFeatures = data.map((d, i) => [
-			scaledOpen.data[i],
-			scaledHigh.data[i],
-			scaledLow.data[i],
-			scaledClose.data[i],
-			scaledVolume.data[i],
-		]);
-
-		// Scale the values
-		let scaledIndicators = [];
-		let scaledIndicatorFeatures = [];
-		for (let i = 0; i < indicators.length; i++) {
-			scaledIndicators.push(minMaxScaler(indicators[i], getMin(indicators[i]), getMax(indicators[i])));
-			scaledIndicatorFeatures.push(scaledIndicators[i].data);
-		}
-
 		let features: number[][] = [];
 		for (let i = 0; i < size; i++) {
-			let dataFeatures = [];
-			for (let j = 0; j < scaledDataFeatures[0].length; j++) {
-				dataFeatures.push(scaledDataFeatures[i][j] || 0);
+			let dataFeatures: number[] = [];
+			for (let j = 0; j < data[0].length; j++) {
+				dataFeatures.push(+(data[i][j] || 0).toPrecision(4));
 			}
 
-			let indicatorFeatures = [];
-			for (let j = 0; j < scaledIndicatorFeatures.length; j++) {
-				indicatorFeatures.push(scaledIndicatorFeatures[j][i] || 0);
+			// get the difference between current open and previous open (1 == same, 1.5 = 50% increase, etc)
+			let dataDiffFeatures: number[] = [];
+			for (let j = 0; j < data[0].length; j++) {
+				if (i == 0) dataDiffFeatures.push(1);
+				else dataDiffFeatures.push(+(data[i][j] / (data[i - 1][j] || 1)).toPrecision(4));
 			}
 
-			features.push([...dataFeatures, ...indicatorFeatures]);
+			let indicatorFeatures: number[] = [];
+			for (let j = 0; j < indicators.length; j++) {
+				indicatorFeatures.push(+(indicators[j][i] || 0).toPrecision(4));
+			}
+
+			// each feature will be [
+			//	open, high, low, close, volume,
+			//	openDiff, highDiff, lowDiff, closeDiff, volumeDiff,
+			//	indicator1value1, indicator1value2, indicator2value1, ...
+			// ]
+			features.push([...dataFeatures, ...dataDiffFeatures, ...indicatorFeatures]);
 		}
 
 		try {
 			// Create the train sets
+			// e.g.
+			// full data for date range 0-49 as input, close for date 50 as output,
+			// full data for date range 1-50 as input, close for date 51 as output,
+			// full data for date range 2-51 as input, close for date 52 as output,
+			// etc
 			for (let i = timePortion; i < size - predictOnlyCount; i++) {
 				for (let j = i - timePortion; j < i; j++) {
 					trainX.push(features[j]);
 				}
 
-				trainY.push(features[i][3]);
+				// feature[8] == closeDiff
+				trainY.push(features[i][8]);
 			}
 		} catch (ex) {
 			reject(ex);
@@ -119,10 +115,6 @@ export const processData = function(
 			timePortion: timePortion,
 			trainX: trainX,
 			trainY: trainY,
-			dataMin: [scaledOpen.min, scaledHigh.min, scaledLow.min, scaledClose.min, scaledVolume.min],
-			dataMax: [scaledOpen.max, scaledHigh.max, scaledLow.max, scaledClose.max, scaledVolume.max],
-			indicatorsMin: scaledIndicators.map(x => x.min),
-			indicatorsMax: scaledIndicators.map(x => x.max),
 			originalData: features,
 		};
 
@@ -134,11 +126,11 @@ export const processData = function(
 	This will take the last timePortion days from the data
 	and they will be used to predict the next day stock price
 */
-export const getDataForNextDayPrediction = function(data: number[][], timePortion: number): number[] {
+export const getRangeForNextDayPrediction = function(data: number[][], timePortion: number): number[] {
 	return [data.length - timePortion - 1, data.length - 1];
 };
 
-export const getDataForAllPredictions = function(
+export const getRangeForAllPredictions = function(
 	data: number[][],
 	timePortion: number,
 	predictOnlyCount: number

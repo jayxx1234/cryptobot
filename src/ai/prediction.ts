@@ -1,8 +1,9 @@
 import * as tf from '@tensorflow/tfjs';
+import * as tfvis from '@tensorflow/tfjs-vis';
 import { OHLCV } from 'ccxt';
 import { Config, cnnOptions, exchangeConfig } from './config';
 import * as Indicators from './indicators';
-import { minMaxScaler, minMaxInverseScaler, processData, ProcessedData, getDataForAllPredictions } from './helpers';
+import { processData, ProcessedData, getRangeForAllPredictions } from './helpers';
 
 (window as any).stopCNN = false;
 
@@ -10,14 +11,14 @@ const epochs = 1;
 
 let configs: Config[] = [];
 let processedData = {};
-let predictionDataSets = {};
+let predictionRangeSets = {};
 let modelProfits: {
 	modelIndex: number;
 	actionIndex: number;
 	profit: number;
 }[] = [];
 
-let dataColumnCount = 5;
+let dataColumnCount = 10; // 5 original data values, 5 diff values
 
 let predictOnlyCount = 100;
 
@@ -33,7 +34,17 @@ class CNN {
 
 		this.indicators = [...Indicators.allMACD(data), ...Indicators.allRSI(data)];
 
-		console.clear();
+		let ohlcvData = data.map(([t, o, h, l, c, v]) => [o, h, l, c, v]);
+
+		const metrics = ['acc'];
+		const container = {
+			name: 'Model Accuracy',
+			tab: 'Training',
+		};
+		const callbacks = tfvis.show.fitCallbacks(container, metrics);
+
+		// console.clear();
+		console.log('##############################');
 		console.log('Beginning Stock Prediction ...');
 
 		let i = 0;
@@ -44,7 +55,7 @@ class CNN {
 			// Process the data and create the train sets
 			if (!processedData[config.timePortion])
 				processedData[config.timePortion] = await processData(
-					data,
+					ohlcvData,
 					this.indicators,
 					config.timePortion,
 					predictOnlyCount
@@ -55,86 +66,83 @@ class CNN {
 			let model = await self.buildModel(config);
 
 			// Transform the data to tensor data
-			// Reshape the data in neural network input format [number_of_samples, timePortion, 1];
+			// Reshape the data in neural network input format [number_of_samples, timePortion, number_of_columns_per_sample, 1];
 			let tensorData = {
 				tensorTrainX: tf
 					.tensor2d(result.trainX)
 					.reshape([result.trainSize, result.timePortion, this.indicators.length + dataColumnCount, 1]),
 				tensorTrainY: tf.tensor1d(result.trainY),
 			};
-			// Rember the min and max in order to revert (min-max scaler) the scaled data later
-			let allMins = [...result.dataMin, ...result.indicatorsMin];
-			let allMaxs = [...result.dataMax, ...result.indicatorsMax];
+
+			console.log('result trainX, result trainY');
+			console.log(result.trainX);
+			console.log(result.trainY);
 
 			// Train the model using the tensor data
 			// Repeat multiple epochs so the error rate is smaller (better fit for the data)
-			let cnn = await self.cnn(model, tensorData, epochs);
+			let cnn = await self.cnn(model, tensorData, epochs, callbacks);
 
 			// Predict for the same train data so we can see how well our model fits the data
-			var predictedX = cnn.model.predict(tensorData.tensorTrainX) as tf.Tensor<tf.Rank>;
+			// var predictedX = cnn.model.predict(tensorData.tensorTrainX) as tf.Tensor<tf.Rank>;
 
 			// Create the set for stock price prediction for the next day
-			if (!predictionDataSets[result.timePortion])
-				predictionDataSets[result.timePortion] = getDataForAllPredictions(
+			if (!predictionRangeSets[result.timePortion])
+				predictionRangeSets[result.timePortion] = getRangeForAllPredictions(
 					result.originalData,
 					result.timePortion,
 					predictOnlyCount
 				);
 
 			// the last predictionSet will have one more data point after it, which is the actual result for the last prediction
-			let predictionSets = predictionDataSets[result.timePortion] as { start: number; end: number }[];
+			let predictionSets = predictionRangeSets[result.timePortion] as { start: number; end: number }[];
 
 			let priceIndex = 0;
+			let totalProfit = 0;
+			let profitablePredictions = 0;
+			let neutralPredictions = 0;
+			let unprofitablePredictions = 0;
+			let totalPredictions = 0;
 			for (let predictionSet of predictionSets) {
-				let actualNextDay = data[predictionSet.end + 1];
+				let actualNextDay = ohlcvData[predictionSet.end + 1];
 
 				// Scale the next day features
 				let nextDayPredictionData = result.originalData.slice(predictionSet.start, predictionSet.end);
-				let nextDayPredictionScaled = nextDayPredictionData[0].map(
-					(_, i) => minMaxScaler(nextDayPredictionData.map(x => x[i]), allMins[i], allMaxs[i]).data
-				);
-
+				// let nextDayPredictionScaled = nextDayPredictionData[0].map((_, i) =>
+				// 	nextDayPredictionData.map(x => x[i])
+				// );
+				console.log(nextDayPredictionData);
 				// Transform to tensor data
 				let tensorNextDayPrediction = tf
-					.tensor2d(nextDayPredictionScaled)
+					.tensor2d(nextDayPredictionData)
 					.reshape([1, result.timePortion, this.indicators.length + dataColumnCount, 1]);
 				// Predict the next day stock price
 				let predictedValue = cnn.model.predict(tensorNextDayPrediction) as tf.Tensor<tf.Rank>;
 
 				// Get the predicted data for the train set
 				let predValue = await predictedValue.data();
-				// Revert the scaled features, so we get the real values
-				let inversePredictedValue = minMaxInverseScaler(Array.from(predValue), allMins[2], allMaxs[2]);
 
-				// Get the next day predicted value
-				let pred = await predictedX.data();
-				// Revert the scaled feature
-				var predictedXInverse = minMaxInverseScaler(Array.from(pred), allMins[2], allMaxs[2]);
+				console.log(`predValue: ${predValue}`);
+				let difference = predValue[0];
+				let price = ohlcvData[predictionSet.end][3] * difference;
 
-				// Add the next day predicted stock price so it's shown on the graph
-				predictedXInverse.data[predictedXInverse.data.length] = inversePredictedValue.data[0];
-
-				// Revert the scaled labels from the trainY (original),
-				// so we can compare them with the predicted one
-				// var trainYInverse = minMaxInverseScaler(result.trainY, min, max);
-
-				// Plot the original (trainY) and predicted values for the same features set (trainX)
-				// plotData(trainYInverse.data, predictedXInverse.data, labels);
-
-				// Print the predicted stock price value for the next day
-				let difference = inversePredictedValue.data[0];
-				let price = data[predictionSet.end][4] * (1 + difference);
-
-				let profit = this.takeAction({
-					previous: data[predictionSet.end][4],
+				console.log(`Difference: ${difference}, Price: ${price}`);
+				let { profit, action } = this.takeAction({
+					previous: ohlcvData[predictionSet.end][3],
 					prediction: price,
-					actual: actualNextDay[4],
+					actual: actualNextDay[3],
 				});
+				totalProfit += profit;
+
+				if (profit > 0) profitablePredictions++;
+				else if (profit == 0) neutralPredictions++;
+				else if (profit < 0) unprofitablePredictions++;
+
+				totalPredictions++;
 
 				console.log(
 					`Model ${i}, PriceIndex: ${priceIndex}, Predicted: ${price.toFixed(20)}, Actual: ${
-						actualNextDay[4]
-					}, Profit: ${profit}`
+						actualNextDay[3]
+					}, Action: ${action}, Profit: ${profit}`
 				);
 
 				predictedValue.dispose();
@@ -142,19 +150,35 @@ class CNN {
 				priceIndex++;
 			}
 
-			predictedX.dispose();
+			console.log(
+				`Model ${i}, Total profit: ${totalProfit.toFixed(20)}, Gain: ${(
+					(totalProfit * 100) /
+					ohlcvData[ohlcvData.length - 1][3]
+				).toFixed(2)}%`
+			);
+			let buyAndHoldProfit = ohlcvData[ohlcvData.length - 1][3] - ohlcvData[predictionSets[0].start][3];
+			console.log(
+				`Buy-and-hold profit: ${buyAndHoldProfit.toFixed(20)}, Gain: ${(
+					(buyAndHoldProfit * 100) /
+					ohlcvData[predictionSets[0].start][3]
+				).toFixed(2)}%`
+			);
+			console.log(
+				`Prediction accuracy: +${((100 * profitablePredictions) / totalPredictions).toFixed(0)}%, =${(
+					(100 * neutralPredictions) /
+					totalPredictions
+				).toFixed(0)}%, -${((100 * unprofitablePredictions) / totalPredictions).toFixed(0)}%`
+			);
+
+			// predictedX.dispose();
 			tensorData.tensorTrainX.dispose();
 			tensorData.tensorTrainY.dispose();
 			cnn.model.dispose();
 
 			i++;
-			if ((window as any).stopCNN) break;
+			if ((window as any).stopCNN) return model;
 		}
-		// console.clear();
-		// console.log(configs);
-		// predictionResults = predictionResults.sort((a, b) => a.loss - b.loss);
-		// console.table(predictionResults);
-		// console.log(configs);
+		return undefined;
 	}
 
 	buildModel(config: Config): Promise<tf.Sequential> {
@@ -226,7 +250,12 @@ class CNN {
 		});
 	}
 
-	cnn(model: tf.Sequential, data: any, epochs: number): Promise<{ model: tf.Sequential; history: tf.History }> {
+	cnn(
+		model: tf.Sequential,
+		data: any,
+		epochs: number,
+		callbacks: any
+	): Promise<{ model: tf.Sequential; history: tf.History }> {
 		return new Promise(async function(resolve, reject) {
 			try {
 				// Optimize using adam (adaptive moment estimation) algorithm
@@ -235,6 +264,7 @@ class CNN {
 				// Train the model
 				let result = await model.fit(data.tensorTrainX, data.tensorTrainY, {
 					epochs: epochs,
+					callbacks: callbacks,
 				});
 
 				resolve({
@@ -247,20 +277,24 @@ class CNN {
 		});
 	}
 
-	takeAction(data: { previous: number; prediction: number; actual: number }): number {
+	takeAction(data: {
+		previous: number;
+		prediction: number;
+		actual: number;
+	}): { profit: number; action: 'buy' | 'sell' | 'hold' } {
 		// account for exchange fees on both transactions
 		let fees = -exchangeConfig.fee.maker * data.previous + -exchangeConfig.fee.taker * data.actual;
-		let actionThreshold = -2 * fees;
+		let actionThreshold = 2 * fees;
 
 		if (data.prediction - data.previous > actionThreshold) {
 			// long
-			return fees + data.actual - data.previous;
+			return { profit: /*fees +*/ data.actual - data.previous, action: 'buy' };
 		} else if (data.previous - data.prediction > actionThreshold) {
 			// short
-			return fees + data.previous - data.actual;
+			return { profit: /*fees +*/ data.previous - data.actual, action: 'sell' };
 		} else {
 			// no transactions
-			return 0;
+			return { profit: 0, action: 'hold' };
 		}
 	}
 }

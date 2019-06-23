@@ -11,12 +11,14 @@
 		"eject": "react-scripts eject",
 		"eslint": "eslint --ext .ts --ext .tsx --ext .js .",
 		"prettier": "prettier --check src/**/*.{ts,tsx} src/**/*.*css",
-		"prettier:fix": "prettier --write src/**/*.{ts,tsx} src/**/*.*css"
+		"prettier:fix": "prettier --write src/**/*.{ts,tsx} src/**/*.*css",
+		"postinstall": "rimraf node_modules/preact/*/preact.d.ts"
 	},
 	"dependencies": {
 		"@material-ui/core": "3.9.3",
 		"@tensorflow/tfjs": "1.1.0",
 		"@tensorflow/tfjs-node": "1.0.3",
+		"@tensorflow/tfjs-vis": "1.1.0",
 		"@types/moment": "2.13.0",
 		"apexcharts": "3.6.6",
 		"autosuggest-highlight": "3.1.1",
