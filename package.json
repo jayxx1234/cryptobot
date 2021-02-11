@@ -20,7 +20,7 @@
 		"@tensorflow/tfjs-node": "1.0.3",
 		"@tensorflow/tfjs-vis": "1.1.0",
 		"@types/moment": "2.13.0",
-		"apexcharts": "3.6.6",
+		"apexcharts": "3.24.0",
 		"autosuggest-highlight": "3.1.1",
 		"ccxt": "1.18.435",
 		"classnames": "^2.2.6",
